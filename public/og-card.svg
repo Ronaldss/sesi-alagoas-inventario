@@ -1,0 +1,43 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="630" fill="#F4F8FC"/>
+  <rect x="36" y="36" width="1128" height="558" rx="36" fill="url(#bg)"/>
+  <circle cx="1038" cy="132" r="116" fill="url(#glow)" fill-opacity="0.5"/>
+  <circle cx="1108" cy="558" r="164" fill="#0E4E96" fill-opacity="0.12"/>
+  <rect x="84" y="88" width="1032" height="454" rx="28" fill="white" fill-opacity="0.08" stroke="white" stroke-opacity="0.16"/>
+
+  <rect x="108" y="118" width="360" height="138" rx="28" fill="white"/>
+  <image href="/sesi-alagoas-logo.jpg" x="140" y="148" width="296" height="78" preserveAspectRatio="xMidYMid meet"/>
+
+  <text x="108" y="336" fill="white" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700" letter-spacing="6">
+    SESI ALAGOAS
+  </text>
+  <text x="108" y="408" fill="white" font-family="Arial, Helvetica, sans-serif" font-size="66" font-weight="700">
+    Sistema de Inventario
+  </text>
+  <text x="108" y="466" fill="#D8E8FA" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="400">
+    Cadastro, consulta e auditoria de itens da unidade escolar
+  </text>
+
+  <rect x="108" y="500" width="266" height="54" rx="27" fill="white" fill-opacity="0.14" stroke="white" stroke-opacity="0.22"/>
+  <text x="140" y="535" fill="white" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700">
+    Acesso interno institucional
+  </text>
+
+  <rect x="802" y="194" width="228" height="256" rx="28" fill="white" fill-opacity="0.1" stroke="white" stroke-opacity="0.18"/>
+  <rect x="842" y="230" width="148" height="20" rx="10" fill="white" fill-opacity="0.92"/>
+  <rect x="842" y="270" width="108" height="20" rx="10" fill="#8FD2EA"/>
+  <rect x="842" y="334" width="148" height="20" rx="10" fill="white" fill-opacity="0.92"/>
+  <rect x="842" y="374" width="118" height="20" rx="10" fill="#F7C55D"/>
+  <rect x="842" y="438" width="148" height="20" rx="10" fill="white" fill-opacity="0.92"/>
+
+  <defs>
+    <linearGradient id="bg" x1="64" y1="64" x2="1136" y2="566" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0057B8"/>
+      <stop offset="1" stop-color="#0B3B75"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(1038 132) rotate(90) scale(116)">
+      <stop stop-color="#60D3F6"/>
+      <stop offset="1" stop-color="#60D3F6" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+</svg>

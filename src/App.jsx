@@ -681,8 +681,9 @@ function App() {
             <StatCard label="Manutencao" value={stats.maintenance} help="Itens que exigem atencao" />
           </section>
 
-          <section className="grid gap-6 xl:grid-cols-[420px_1fr]">
-            <article className={`${activeSection === 'consulta' ? 'hidden xl:block' : 'block'} rounded-[1.75rem] border border-slate-200 bg-slate-50/60 p-5`}>
+          {activeSection !== 'relatorios' ? (
+            <section className="grid gap-6 xl:grid-cols-[420px_1fr]">
+              <article className={`${activeSection === 'consulta' ? 'hidden xl:block' : 'block'} rounded-[1.75rem] border border-slate-200 bg-slate-50/60 p-5`}>
               <div>
                 <h2 className="text-xl font-bold text-sesi-ink">Cadastro de item</h2>
                 <p className="text-sm text-slate-500">Preencha apenas as informacoes essenciais.</p>
@@ -792,9 +793,9 @@ function App() {
                   {isSubmitting ? 'Salvando...' : 'Salvar item'}
                 </button>
               </form>
-            </article>
+              </article>
 
-            <article className={`${activeSection === 'cadastro' ? 'hidden xl:block' : 'block'} rounded-[1.75rem] border border-slate-200 bg-white p-5`}>
+              <article className={`${activeSection === 'cadastro' ? 'hidden xl:block' : 'block'} rounded-[1.75rem] border border-slate-200 bg-white p-5`}>
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <h2 className="text-xl font-bold text-sesi-ink">Consulta de itens</h2>
@@ -886,9 +887,13 @@ function App() {
                   </div>
                 )}
               </div>
-            </article>
+              </article>
+            </section>
+          ) : null}
 
-            <article className={`${activeSection === 'relatorios' ? 'block xl:col-span-2' : 'hidden'} space-y-6`}>
+          {activeSection === 'relatorios' ? (
+            <section className="space-y-6">
+              <article className="space-y-6">
               <div className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
@@ -1035,8 +1040,9 @@ function App() {
                   </div>
                 </div>
               </div>
-            </article>
-          </section>
+              </article>
+            </section>
+          ) : null}
         </div>
       </section>
     </main>

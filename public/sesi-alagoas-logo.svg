@@ -1,0 +1,18 @@
+<svg width="420" height="96" viewBox="0 0 420 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="420" height="96" rx="22" fill="white"/>
+  <g transform="translate(18 18)">
+    <path d="M0 30C0 13.4315 13.4315 0 30 0H72C88.5685 0 102 13.4315 102 30C102 46.5685 88.5685 60 72 60H30C13.4315 60 0 46.5685 0 30Z" fill="#0057B8"/>
+    <circle cx="73" cy="30" r="17" fill="#22B4D8"/>
+    <path d="M24 20H58" stroke="white" stroke-width="8" stroke-linecap="round"/>
+    <path d="M24 30H50" stroke="white" stroke-width="8" stroke-linecap="round"/>
+    <path d="M24 40H58" stroke="white" stroke-width="8" stroke-linecap="round"/>
+  </g>
+  <g transform="translate(138 18)">
+    <path d="M0 13.5C0 5.76801 6.26801 0 14 0H72V14H18V23H61C68.732 23 75 29.268 75 37V46C75 53.732 68.732 60 61 60H0V46H57V37H14C6.26801 37 0 30.732 0 23V13.5Z" fill="#0057B8"/>
+    <path d="M93 0H109V60H93V0Z" fill="#0057B8"/>
+    <circle cx="101" cy="12" r="8" fill="#22B4D8"/>
+    <path d="M127 13.5C127 5.76801 133.268 0 141 0H199V14H145V23H188C195.732 23 202 29.268 202 37V46C202 53.732 195.732 60 188 60H127V46H184V37H141C133.268 37 127 30.732 127 23V13.5Z" fill="#0057B8"/>
+  </g>
+  <text x="342" y="43" fill="#0057B8" font-family="Arial, sans-serif" font-size="16" font-weight="700" letter-spacing="2.5">ALAGOAS</text>
+  <text x="342" y="63" fill="#64748B" font-family="Arial, sans-serif" font-size="11" font-weight="700" letter-spacing="1.7">INVENTARIO ESCOLAR</text>
+</svg>

@@ -1,0 +1,24 @@
+{
+  "name": "Inventario SESI Alagoas",
+  "short_name": "SESI Inventario",
+  "description": "Sistema de inventario escolar para supervisao, auditoria e registro com fotos.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5fbff",
+  "theme_color": "#0b3b75",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

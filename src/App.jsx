@@ -84,6 +84,92 @@ function ConditionBadge({ value }) {
   )
 }
 
+function CategoryCombobox({ value, onChange, placeholder, required = false }) {
+  const [isOpen, setIsOpen] = useState(false)
+
+  const filteredOptions = useMemo(() => {
+    const normalizedValue = value.trim().toLowerCase()
+
+    if (!normalizedValue) {
+      return CATEGORY_OPTIONS
+    }
+
+    const matches = CATEGORY_OPTIONS.filter((option) => option.toLowerCase().includes(normalizedValue))
+    return matches.length ? matches : CATEGORY_OPTIONS
+  }, [value])
+
+  const hasCustomValue = value.trim() && !CATEGORY_OPTIONS.some((option) => option.toLowerCase() === value.trim().toLowerCase())
+
+  return (
+    <div className="relative">
+      <div className="relative">
+        <input
+          type="text"
+          value={value}
+          onFocus={() => setIsOpen(true)}
+          onBlur={() => window.setTimeout(() => setIsOpen(false), 120)}
+          onChange={(event) => {
+            onChange(event.target.value)
+            setIsOpen(true)
+          }}
+          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 pr-12 outline-none transition focus:border-sesi-blue"
+          placeholder={placeholder}
+          required={required}
+        />
+        <button
+          type="button"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => setIsOpen((current) => !current)}
+          className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-500"
+          aria-label="Abrir categorias"
+        >
+          <svg viewBox="0 0 20 20" fill="currentColor" className={`h-5 w-5 transition ${isOpen ? 'rotate-180' : ''}`}>
+            <path
+              fillRule="evenodd"
+              d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.51a.75.75 0 0 1-1.08 0l-4.25-4.51a.75.75 0 0 1 .02-1.06Z"
+              clipRule="evenodd"
+            />
+          </svg>
+        </button>
+      </div>
+
+      {isOpen ? (
+        <div className="absolute left-0 right-0 z-20 mt-2 max-h-64 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-900/10">
+          <div className="space-y-1">
+            {filteredOptions.map((option) => (
+              <button
+                key={option}
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  onChange(option)
+                  setIsOpen(false)
+                }}
+                className={`w-full rounded-xl px-3 py-2 text-left text-sm transition ${
+                  option === value ? 'bg-sesi-ice font-semibold text-sesi-blue' : 'text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                {option}
+              </button>
+            ))}
+
+            {hasCustomValue ? (
+              <button
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => setIsOpen(false)}
+                className="w-full rounded-xl border border-dashed border-slate-200 px-3 py-2 text-left text-sm text-slate-600 transition hover:bg-slate-50"
+              >
+                Usar "{value.trim()}"
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 function detectIos() {
   return /iPad|iPhone|iPod/.test(window.navigator.userAgent)
 }
@@ -688,12 +774,6 @@ function App() {
         </header>
 
         <div className="space-y-6 px-5 py-6 sm:px-8">
-          <datalist id="category-options">
-            {CATEGORY_OPTIONS.map((category) => (
-              <option key={category} value={category} />
-            ))}
-          </datalist>
-
           <div className="rounded-[1.75rem] border border-slate-200 bg-[linear-gradient(135deg,#f8fbff,#ffffff)] px-5 py-5 shadow-sm">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -752,12 +832,9 @@ function App() {
                 />
 
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <input
-                    type="text"
-                    list="category-options"
+                  <CategoryCombobox
                     value={form.category}
-                    onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))}
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-sesi-blue"
+                    onChange={(category) => setForm((current) => ({ ...current, category }))}
                     placeholder="Categoria"
                     required
                   />
@@ -858,14 +935,9 @@ function App() {
                     className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-sesi-blue focus:bg-white"
                     placeholder="Buscar"
                   />
-                  <input
-                    type="text"
-                    list="category-options"
+                  <CategoryCombobox
                     value={filters.category}
-                    onChange={(event) =>
-                      setFilters((current) => ({ ...current, category: event.target.value }))
-                    }
-                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-sesi-blue focus:bg-white"
+                    onChange={(category) => setFilters((current) => ({ ...current, category }))}
                     placeholder="Categoria"
                   />
                   <select
@@ -988,12 +1060,9 @@ function App() {
                         placeholder="Buscar por item ou local"
                       />
                       <div className="grid gap-3 sm:grid-cols-2">
-                        <input
-                          type="text"
-                          list="category-options"
+                        <CategoryCombobox
                           value={reportFilters.category}
-                          onChange={(event) => setReportFilters((current) => ({ ...current, category: event.target.value }))}
-                          className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-sesi-blue focus:bg-white"
+                          onChange={(category) => setReportFilters((current) => ({ ...current, category }))}
                           placeholder="Categoria"
                         />
                         <select

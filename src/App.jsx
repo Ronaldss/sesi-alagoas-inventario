@@ -284,43 +284,35 @@ function App() {
 
   if (!session) {
     return (
-      <main className="mx-auto flex min-h-screen w-full max-w-5xl items-center px-4 py-8 sm:px-6">
-        <section className="grid w-full gap-6 lg:grid-cols-[1fr_430px]">
-          <div className="rounded-[2rem] bg-[linear-gradient(145deg,#0b3b75,#0f5bad)] p-8 text-white shadow-2xl shadow-sky-950/20">
-            <Brand />
-            <div className="mt-10 max-w-xl">
-              <p className="text-sm font-semibold uppercase tracking-[0.28em] text-sky-100/80">
-                Inventario patrimonial
+      <main className="mx-auto flex min-h-screen w-full max-w-6xl items-center justify-center px-4 py-8 sm:px-6">
+        <section className="w-full max-w-md rounded-[2rem] border border-slate-200/80 bg-white/95 p-6 shadow-2xl shadow-slate-900/8 backdrop-blur sm:p-8">
+          <div className="flex flex-col items-center text-center">
+            <img src="/sesi-alagoas-logo.jpg" alt="SESI Alagoas" className="h-16 w-auto sm:h-18" />
+            <div className="mt-6">
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-sesi-blue">
+                Sistema de Inventario
               </p>
-              <h1 className="mt-4 text-4xl font-bold leading-tight sm:text-5xl">
-                Controle de equipamentos com foco em simplicidade e agilidade.
-              </h1>
-              <p className="mt-5 text-base leading-7 text-sky-50/88">
-                Registre itens, organize por ambiente e consulte rapidamente durante a supervisao da unidade.
+              <h1 className="mt-3 text-3xl font-bold text-sesi-ink">Acesso ao sistema</h1>
+              <p className="mt-3 text-sm leading-6 text-slate-500">
+                Ambiente de uso interno para cadastro e consulta de itens da unidade escolar.
               </p>
             </div>
           </div>
 
-          <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-900/8 sm:p-8">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-2xl font-bold text-sesi-ink">Acesso ao sistema</h2>
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                {authModeLabel}
-              </span>
+          <div className="mt-6 flex items-center justify-center">
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+              {authModeLabel}
+            </span>
+          </div>
+
+          {screenError ? (
+            <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {screenError}
             </div>
-            <p className="mt-2 text-sm text-slate-500">
-              {inventoryApi.isRemote
-                ? 'Entre com seu usuario cadastrado no Supabase.'
-                : 'Entre com um perfil de demonstracao enquanto o Supabase nao estiver configurado.'}
-            </p>
+          ) : null}
 
-            {screenError ? (
-              <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                {screenError}
-              </div>
-            ) : null}
-
-            <form className="mt-8 space-y-5" onSubmit={handleLogin}>
+          <form className="mt-8 space-y-5" onSubmit={handleLogin}>
+            <div className="space-y-5">
               <label className="block space-y-2">
                 <span className="text-sm font-medium text-slate-700">E-mail</span>
                 <input
@@ -352,23 +344,22 @@ function App() {
                   {loginError}
                 </div>
               ) : null}
+            </div>
 
-              <button
-                type="submit"
-                className="w-full rounded-2xl bg-sesi-blue px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-sesi-navy"
-              >
-                Entrar
-              </button>
-            </form>
+            <button
+              type="submit"
+              className="w-full rounded-2xl bg-sesi-blue px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-sesi-navy"
+            >
+              Entrar
+            </button>
+          </form>
 
-            {!inventoryApi.isRemote ? (
-              <div className="mt-6 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
-                <p className="font-semibold text-sesi-ink">Perfis demo</p>
-                <p className="mt-2">supervisora@sesi-al.demo / sesi123</p>
-                <p>colaborador@sesi-al.demo / sesi123</p>
-              </div>
-            ) : null}
-          </div>
+          {!inventoryApi.isRemote ? (
+            <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
+              <p className="font-semibold text-sesi-ink">Acesso de demonstracao</p>
+              <p className="mt-2">supervisora@sesi-al.demo / sesi123</p>
+            </div>
+          ) : null}
         </section>
       </main>
     )

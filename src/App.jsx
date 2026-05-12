@@ -11,6 +11,17 @@ const emptyForm = {
   image: '',
 }
 
+const CATEGORY_OPTIONS = [
+  'Oficina',
+  'Maker',
+  'Ciências Humanas',
+  'Linguagem',
+  'Ciências da Natureza',
+  'Robótica',
+  'Informática',
+  'Matemática',
+]
+
 function Brand() {
   return (
     <div className="flex items-center gap-3">
@@ -245,8 +256,8 @@ function App() {
   const [items, setItems] = useState([])
   const [loginForm, setLoginForm] = useState({ email: '', password: '' })
   const [form, setForm] = useState(emptyForm)
-  const [filters, setFilters] = useState({ search: '', category: 'Todos', condition: 'Todos' })
-  const [reportFilters, setReportFilters] = useState({ search: '', category: 'Todos', condition: 'Todos' })
+  const [filters, setFilters] = useState({ search: '', category: '', condition: 'Todos' })
+  const [reportFilters, setReportFilters] = useState({ search: '', category: '', condition: 'Todos' })
   const [activeSection, setActiveSection] = useState('cadastro')
   const [installPrompt, setInstallPrompt] = useState(null)
   const [feedback, setFeedback] = useState('')
@@ -302,7 +313,7 @@ function App() {
         const matchesSearch =
           item.name.toLowerCase().includes(filters.search.toLowerCase()) ||
           item.location.toLowerCase().includes(filters.search.toLowerCase())
-        const matchesCategory = filters.category === 'Todos' || item.category === filters.category
+        const matchesCategory = !filters.category || item.category === filters.category
         const matchesCondition = filters.condition === 'Todos' || item.condition === filters.condition
 
         return matchesSearch && matchesCategory && matchesCondition
@@ -316,8 +327,7 @@ function App() {
         const matchesSearch =
           item.name.toLowerCase().includes(reportFilters.search.toLowerCase()) ||
           item.location.toLowerCase().includes(reportFilters.search.toLowerCase())
-        const matchesCategory =
-          reportFilters.category === 'Todos' || item.category === reportFilters.category
+        const matchesCategory = !reportFilters.category || item.category === reportFilters.category
         const matchesCondition =
           reportFilters.condition === 'Todos' || item.condition === reportFilters.condition
 
@@ -332,14 +342,16 @@ function App() {
     maintenance: items.filter((item) => item.condition === 'Requer manutencao').length,
   }
 
-  const reportCategoryRows = useMemo(
-    () =>
-      ['Oficina', 'Maker', 'Aula'].map((category) => ({
-        label: category,
-        value: filteredReportItems.filter((item) => item.category === category).length,
-      })),
-    [filteredReportItems],
-  )
+  const reportCategoryRows = useMemo(() => {
+    const counts = filteredReportItems.reduce((accumulator, item) => {
+      accumulator[item.category] = (accumulator[item.category] ?? 0) + 1
+      return accumulator
+    }, {})
+
+    return Object.entries(counts)
+      .sort(([left], [right]) => left.localeCompare(right, 'pt-BR'))
+      .map(([label, value]) => ({ label, value }))
+  }, [filteredReportItems])
 
   const reportConditionRows = useMemo(
     () =>
@@ -676,6 +688,12 @@ function App() {
         </header>
 
         <div className="space-y-6 px-5 py-6 sm:px-8">
+          <datalist id="category-options">
+            {CATEGORY_OPTIONS.map((category) => (
+              <option key={category} value={category} />
+            ))}
+          </datalist>
+
           <div className="rounded-[1.75rem] border border-slate-200 bg-[linear-gradient(135deg,#f8fbff,#ffffff)] px-5 py-5 shadow-sm">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -734,15 +752,15 @@ function App() {
                 />
 
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <select
+                  <input
+                    type="text"
+                    list="category-options"
                     value={form.category}
                     onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))}
                     className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-sesi-blue"
-                  >
-                    <option>Oficina</option>
-                    <option>Maker</option>
-                    <option>Aula</option>
-                  </select>
+                    placeholder="Categoria"
+                    required
+                  />
 
                   <select
                     value={form.condition}
@@ -840,18 +858,16 @@ function App() {
                     className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-sesi-blue focus:bg-white"
                     placeholder="Buscar"
                   />
-                  <select
+                  <input
+                    type="text"
+                    list="category-options"
                     value={filters.category}
                     onChange={(event) =>
                       setFilters((current) => ({ ...current, category: event.target.value }))
                     }
                     className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-sesi-blue focus:bg-white"
-                  >
-                    <option>Todos</option>
-                    <option>Oficina</option>
-                    <option>Maker</option>
-                    <option>Aula</option>
-                  </select>
+                    placeholder="Categoria"
+                  />
                   <select
                     value={filters.condition}
                     onChange={(event) =>
@@ -972,16 +988,14 @@ function App() {
                         placeholder="Buscar por item ou local"
                       />
                       <div className="grid gap-3 sm:grid-cols-2">
-                        <select
+                        <input
+                          type="text"
+                          list="category-options"
                           value={reportFilters.category}
                           onChange={(event) => setReportFilters((current) => ({ ...current, category: event.target.value }))}
                           className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-sesi-blue focus:bg-white"
-                        >
-                          <option>Todos</option>
-                          <option>Oficina</option>
-                          <option>Maker</option>
-                          <option>Aula</option>
-                        </select>
+                          placeholder="Categoria"
+                        />
                         <select
                           value={reportFilters.condition}
                           onChange={(event) => setReportFilters((current) => ({ ...current, condition: event.target.value }))}

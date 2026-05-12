@@ -23,7 +23,7 @@ const seedItems = [
   {
     id: crypto.randomUUID(),
     name: 'Projetor Epson X39',
-    category: 'Aula',
+    category: 'Linguagem',
     location: 'Sala 04',
     condition: 'Excelente',
     acquisitionDate: '2024-08-02',

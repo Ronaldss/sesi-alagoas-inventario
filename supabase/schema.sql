@@ -11,7 +11,7 @@ create table if not exists public.inventory_items (
   id uuid primary key default gen_random_uuid(),
   created_by uuid not null references public.profiles(id) on delete restrict,
   name text not null,
-  category text not null check (category in ('Oficina', 'Maker', 'Aula')),
+  category text not null,
   location text not null,
   condition text not null check (condition in ('Excelente', 'Bom', 'Regular', 'Requer manutencao')),
   acquisition_date date not null,
@@ -20,6 +20,9 @@ create table if not exists public.inventory_items (
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );
+
+alter table public.inventory_items
+drop constraint if exists inventory_items_category_check;
 
 create or replace function public.set_updated_at()
 returns trigger

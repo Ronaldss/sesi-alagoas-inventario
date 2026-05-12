@@ -1,5 +1,5 @@
-const CACHE_NAME = 'sesi-inventario-v1'
-const APP_SHELL = ['/', '/manifest.webmanifest', '/icon-192.svg', '/icon-512.svg']
+const CACHE_NAME = 'sesi-inventario-v2'
+const APP_SHELL = ['/manifest.webmanifest', '/icon-192.svg', '/icon-512.svg', '/sesi-alagoas-logo.jpg']
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)))
@@ -20,6 +20,28 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
+  const requestUrl = new URL(event.request.url)
+  const isHtmlNavigation =
+    event.request.mode === 'navigate' ||
+    (event.request.headers.get('accept') || '').includes('text/html')
+
+  if (isHtmlNavigation) {
+    event.respondWith(
+      fetch(event.request, { cache: 'no-store' })
+        .then((response) => {
+          const responseClone = response.clone()
+          caches.open(CACHE_NAME).then((cache) => cache.put('/', responseClone))
+          return response
+        })
+        .catch(() => caches.match('/') || caches.match('/index.html')),
+    )
+    return
+  }
+
+  if (requestUrl.origin !== self.location.origin) {
+    return
+  }
+
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
@@ -28,11 +50,15 @@ self.addEventListener('fetch', (event) => {
 
       return fetch(event.request)
         .then((response) => {
+          if (!response.ok) {
+            return response
+          }
+
           const responseClone = response.clone()
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone))
           return response
         })
-        .catch(() => caches.match('/'))
+        .catch(() => caches.match(event.request))
     }),
   )
 })

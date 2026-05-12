@@ -70,6 +70,57 @@ function ConditionBadge({ value }) {
   )
 }
 
+function detectIos() {
+  return /iPad|iPhone|iPod/.test(window.navigator.userAgent)
+}
+
+function isStandaloneMode() {
+  return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true
+}
+
+function shouldShowInstallGuideOnLoad() {
+  const dismissed = window.localStorage.getItem('sesi-install-guide-dismissed')
+  return !dismissed && !isStandaloneMode()
+}
+
+function InstallGuide({ canInstall, isIos, onInstall, onDismiss }) {
+  return (
+    <div className="rounded-3xl border border-sky-200 bg-[linear-gradient(135deg,#eef7ff,#f8fbff)] p-4 shadow-sm">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-sesi-blue">Instale no celular</p>
+          <p className="mt-1 text-sm leading-6 text-slate-600">
+            {canInstall
+              ? 'Toque em instalar para adicionar este sistema a tela inicial com experiencia de aplicativo.'
+              : isIos
+                ? 'No iPhone, abra no Safari e toque em Compartilhar > Adicionar a Tela de Inicio.'
+                : 'Se o navegador nao mostrar o instalador, use o menu e escolha Adicionar a tela inicial.'}
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-2 sm:flex-row">
+          {canInstall ? (
+            <button
+              type="button"
+              onClick={onInstall}
+              className="rounded-2xl bg-sesi-blue px-4 py-2 text-sm font-semibold text-white transition hover:bg-sesi-navy"
+            >
+              Instalar agora
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+          >
+            Fechar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function formatSessionName(session) {
   if (session?.role === 'Supervisor' && session?.name === 'Ana Beatriz') {
     return 'Nome (teste)'
@@ -92,6 +143,8 @@ function App() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [screenError, setScreenError] = useState('')
+  const [showInstallGuide, setShowInstallGuide] = useState(() => shouldShowInstallGuideOnLoad())
+  const [isIosDevice] = useState(() => detectIos())
 
   useEffect(() => {
     async function bootstrap() {
@@ -121,6 +174,9 @@ function App() {
     const beforeInstall = (event) => {
       event.preventDefault()
       setInstallPrompt(event)
+      if (!isStandaloneMode()) {
+        setShowInstallGuide(true)
+      }
     }
 
     window.addEventListener('beforeinstallprompt', beforeInstall)
@@ -208,6 +264,12 @@ function App() {
 
     await installPrompt.prompt()
     setInstallPrompt(null)
+    setShowInstallGuide(false)
+  }
+
+  const dismissInstallGuide = () => {
+    setShowInstallGuide(false)
+    window.localStorage.setItem('sesi-install-guide-dismissed', 'true')
   }
 
   if (isLoading) {
@@ -362,6 +424,15 @@ function App() {
               <span className="rounded-full bg-slate-100 px-3 py-1 font-semibold">{authModeLabel}</span>
             </div>
           </div>
+
+          {showInstallGuide ? (
+            <InstallGuide
+              canInstall={Boolean(installPrompt)}
+              isIos={isIosDevice}
+              onInstall={handleInstall}
+              onDismiss={dismissInstallGuide}
+            />
+          ) : null}
 
           {screenError ? (
             <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">

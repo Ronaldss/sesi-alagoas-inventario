@@ -210,6 +210,36 @@ function ReportDetailCard({ item }) {
   )
 }
 
+function ReportHeaderCard({ totalItems, totalLocations, totalMaintenance }) {
+  const generatedAt = formatDate(new Date(), { dateStyle: 'full', timeStyle: 'short' })
+
+  return (
+    <div className="rounded-[1.75rem] border border-slate-200 bg-[linear-gradient(135deg,#f8fbff,#ffffff)] p-5 shadow-sm">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex items-start gap-4">
+          <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+            <img src="/sesi-alagoas-logo.jpg" alt="SESI Alagoas" className="h-12 w-auto sm:h-14" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-sesi-blue">Relatorio institucional</p>
+            <h2 className="mt-2 text-2xl font-bold text-sesi-ink">Relatorio geral de inventario</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+              Consolidado de itens cadastrados para acompanhamento da unidade escolar do SESI Alagoas.
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-[1.5rem] border border-slate-200 bg-white px-4 py-4 text-sm text-slate-600 shadow-sm lg:min-w-[290px]">
+          <p><span className="font-semibold text-sesi-ink">Emitido em:</span> {generatedAt}</p>
+          <p className="mt-2"><span className="font-semibold text-sesi-ink">Itens considerados:</span> {totalItems}</p>
+          <p className="mt-2"><span className="font-semibold text-sesi-ink">Locais incluidos:</span> {totalLocations}</p>
+          <p className="mt-2"><span className="font-semibold text-sesi-ink">Itens em manutencao:</span> {totalMaintenance}</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function App() {
   const [session, setSession] = useState(null)
   const [items, setItems] = useState([])
@@ -894,16 +924,22 @@ function App() {
           {activeSection === 'relatorios' ? (
             <section className="space-y-6">
               <article className="space-y-6">
+              <ReportHeaderCard
+                totalItems={filteredReportItems.length}
+                totalLocations={new Set(filteredReportItems.map((item) => item.location)).size}
+                totalMaintenance={filteredReportItems.filter((item) => item.condition === 'Requer manutencao').length}
+              />
+
               <div className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
-                    <h2 className="text-xl font-bold text-sesi-ink">Relatorios</h2>
+                    <h2 className="text-xl font-bold text-sesi-ink">Exportacao e analise</h2>
                     <p className="mt-1 text-sm leading-6 text-slate-500">
-                      Gere uma visao executiva do inventario e exporte em formatos compativeis com Excel, LibreOffice e PDF.
+                      Gere arquivos compativeis com Excel, LibreOffice e PDF para envio, impressao ou arquivo interno.
                     </p>
                   </div>
                   <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                    Relatorio com base nos filtros aplicados abaixo.
+                    Os dados abaixo respeitam exclusivamente os filtros do relatorio.
                   </div>
                 </div>
 
@@ -924,6 +960,9 @@ function App() {
                 <div className="space-y-4">
                   <div className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
                     <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-sesi-blue">Filtros do relatorio</h3>
+                    <p className="mt-2 text-sm text-slate-500">
+                      Use os filtros para montar um recorte especifico antes de exportar ou imprimir.
+                    </p>
                     <div className="mt-4 grid gap-3">
                       <input
                         type="search"
@@ -988,10 +1027,12 @@ function App() {
                   <div className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                       <div>
-                        <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-sesi-blue">Detalhamento</h3>
-                        <p className="mt-1 text-sm text-slate-500">Visualizacao adaptada para celular e desktop.</p>
+                        <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-sesi-blue">Detalhamento do inventario</h3>
+                        <p className="mt-1 text-sm text-slate-500">Visualizacao adaptada para consulta em celular e desktop.</p>
                       </div>
-                      <p className="text-sm text-slate-500">{filteredReportItems.length} itens</p>
+                      <p className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
+                        {filteredReportItems.length} itens
+                      </p>
                     </div>
 
                     <div className="mt-4 space-y-4 md:hidden">

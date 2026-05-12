@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import * as XLSX from 'xlsx'
 import { inventoryApi } from './lib/inventory-api'
 
 const emptyForm = {
@@ -14,7 +15,9 @@ const emptyForm = {
 function Brand() {
   return (
     <div className="flex items-center gap-3">
-      <img src="/sesi-alagoas-logo.jpg" alt="SESI Alagoas" className="h-11 w-auto sm:h-12" />
+      <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+        <img src="/sesi-alagoas-logo.jpg" alt="SESI Alagoas" className="h-12 w-auto sm:h-14" />
+      </div>
       <div className="hidden sm:block">
         <p className="text-xs font-semibold uppercase tracking-[0.22em] text-sesi-blue">Sistema de Inventario</p>
         <p className="text-sm text-slate-500">Unidade escolar - SESI Alagoas</p>
@@ -39,6 +42,7 @@ function SectionToggle({ value, onChange }) {
       {[
         { id: 'cadastro', label: 'Cadastro' },
         { id: 'consulta', label: 'Consulta' },
+        { id: 'relatorios', label: 'Relatorios' },
       ].map((item) => (
         <button
           key={item.id}
@@ -129,6 +133,44 @@ function formatSessionName(session) {
   return session?.name ?? ''
 }
 
+function formatDate(value, options) {
+  return new Intl.DateTimeFormat('pt-BR', options).format(new Date(value))
+}
+
+function slugifyFilename(value) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase()
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+function ReportSummaryTable({ title, rows }) {
+  return (
+    <div className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm">
+      <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-sesi-blue">{title}</h3>
+      <div className="mt-4 space-y-3">
+        {rows.map((row) => (
+          <div key={row.label} className="flex items-center justify-between gap-4 rounded-2xl bg-slate-50 px-4 py-3">
+            <span className="text-sm text-slate-600">{row.label}</span>
+            <span className="text-sm font-semibold text-sesi-ink">{row.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function App() {
   const [session, setSession] = useState(null)
   const [items, setItems] = useState([])
@@ -145,6 +187,7 @@ function App() {
   const [screenError, setScreenError] = useState('')
   const [showInstallGuide, setShowInstallGuide] = useState(() => shouldShowInstallGuideOnLoad())
   const [isIosDevice] = useState(() => detectIos())
+  const [reportFeedback, setReportFeedback] = useState('')
 
   useEffect(() => {
     async function bootstrap() {
@@ -202,6 +245,38 @@ function App() {
     locations: new Set(items.map((item) => item.location)).size,
     maintenance: items.filter((item) => item.condition === 'Requer manutencao').length,
   }
+
+  const reportCategoryRows = useMemo(
+    () =>
+      ['Oficina', 'Maker', 'Aula'].map((category) => ({
+        label: category,
+        value: filteredItems.filter((item) => item.category === category).length,
+      })),
+    [filteredItems],
+  )
+
+  const reportConditionRows = useMemo(
+    () =>
+      ['Excelente', 'Bom', 'Regular', 'Requer manutencao'].map((condition) => ({
+        label: condition,
+        value: filteredItems.filter((item) => item.condition === condition).length,
+      })),
+    [filteredItems],
+  )
+
+  const reportDetailRows = useMemo(
+    () =>
+      filteredItems.map((item) => ({
+        'Nome do item': item.name,
+        Categoria: item.category,
+        Localizacao: item.location,
+        'Estado de conservacao': item.condition,
+        'Data de aquisicao': formatDate(item.acquisitionDate),
+        Observacoes: item.notes || '',
+        'Data do cadastro': formatDate(item.createdAt, { dateStyle: 'short', timeStyle: 'short' }),
+      })),
+    [filteredItems],
+  )
 
   const authModeLabel = inventoryApi.isRemote ? 'Supabase conectado' : 'Modo demonstracao'
   const displayName = formatSessionName(session)
@@ -272,6 +347,104 @@ function App() {
     window.localStorage.setItem('sesi-install-guide-dismissed', 'true')
   }
 
+  const exportReportXlsx = () => {
+    const summaryRows = [
+      { Indicador: 'Itens no relatorio', Valor: filteredItems.length },
+      { Indicador: 'Locais no relatorio', Valor: new Set(filteredItems.map((item) => item.location)).size },
+      { Indicador: 'Itens em manutencao', Valor: filteredItems.filter((item) => item.condition === 'Requer manutencao').length },
+      { Indicador: 'Gerado em', Valor: formatDate(new Date(), { dateStyle: 'short', timeStyle: 'short' }) },
+    ]
+
+    const categoryRows = reportCategoryRows.map((row) => ({ Categoria: row.label, Quantidade: row.value }))
+    const conditionRows = reportConditionRows.map((row) => ({ 'Estado de conservacao': row.label, Quantidade: row.value }))
+
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(summaryRows), 'Resumo')
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(categoryRows), 'Categorias')
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(conditionRows), 'Conservacao')
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(reportDetailRows), 'Detalhado')
+
+    XLSX.writeFile(workbook, `relatorio-inventario-${slugifyFilename(formatDate(new Date()))}.xlsx`)
+    setReportFeedback('Relatorio Excel gerado com sucesso.')
+  }
+
+  const exportReportCsv = () => {
+    const worksheet = XLSX.utils.json_to_sheet(reportDetailRows)
+    const csv = XLSX.utils.sheet_to_csv(worksheet)
+    downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), `relatorio-detalhado-${slugifyFilename(formatDate(new Date()))}.csv`)
+    setReportFeedback('Relatorio CSV detalhado gerado com sucesso.')
+  }
+
+  const printReport = () => {
+    const opened = window.open('', '_blank', 'width=1080,height=800')
+
+    if (!opened) {
+      setReportFeedback('Nao foi possivel abrir a janela de impressao neste navegador.')
+      return
+    }
+
+    const detailRows = filteredItems
+      .map(
+        (item) => `
+          <tr>
+            <td>${item.name}</td>
+            <td>${item.category}</td>
+            <td>${item.location}</td>
+            <td>${item.condition}</td>
+            <td>${formatDate(item.acquisitionDate)}</td>
+          </tr>
+        `,
+      )
+      .join('')
+
+    opened.document.write(`
+      <html lang="pt-BR">
+        <head>
+          <title>Relatorio de Inventario - SESI Alagoas</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 32px; color: #12304f; }
+            h1, h2 { margin: 0 0 12px; }
+            .meta, .grid { margin-bottom: 24px; }
+            .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+            .card { border: 1px solid #dbe4ee; border-radius: 16px; padding: 16px; }
+            table { width: 100%; border-collapse: collapse; }
+            th, td { border: 1px solid #dbe4ee; padding: 10px; text-align: left; font-size: 14px; }
+            th { background: #f5f8fc; }
+          </style>
+        </head>
+        <body>
+          <h1>Relatorio de Inventario</h1>
+          <div class="meta">SESI Alagoas • Gerado em ${formatDate(new Date(), {
+            dateStyle: 'short',
+            timeStyle: 'short',
+          })}</div>
+          <div class="grid">
+            <div class="card"><strong>Itens no relatorio</strong><br />${filteredItems.length}</div>
+            <div class="card"><strong>Locais mapeados</strong><br />${new Set(filteredItems.map((item) => item.location)).size}</div>
+            <div class="card"><strong>Itens em manutencao</strong><br />${filteredItems.filter((item) => item.condition === 'Requer manutencao').length}</div>
+          </div>
+          <h2>Detalhamento</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Nome do item</th>
+                <th>Categoria</th>
+                <th>Localizacao</th>
+                <th>Estado</th>
+                <th>Aquisicao</th>
+              </tr>
+            </thead>
+            <tbody>${detailRows}</tbody>
+          </table>
+        </body>
+      </html>
+    `)
+    opened.document.close()
+    opened.focus()
+    opened.print()
+    setReportFeedback('Janela de impressao do relatorio aberta.')
+  }
+
   if (isLoading) {
     return (
       <main className="flex min-h-screen items-center justify-center px-4">
@@ -287,7 +460,9 @@ function App() {
       <main className="mx-auto flex min-h-screen w-full max-w-6xl items-center justify-center px-4 py-8 sm:px-6">
         <section className="w-full max-w-md rounded-[2rem] border border-slate-200/80 bg-white/95 p-6 shadow-2xl shadow-slate-900/8 backdrop-blur sm:p-8">
           <div className="flex flex-col items-center text-center">
-            <img src="/sesi-alagoas-logo.jpg" alt="SESI Alagoas" className="h-16 w-auto sm:h-18" />
+            <div className="rounded-[2rem] border border-slate-200 bg-white px-5 py-4 shadow-lg shadow-slate-900/5">
+              <img src="/sesi-alagoas-logo.jpg" alt="SESI Alagoas" className="h-20 w-auto sm:h-24" />
+            </div>
             <div className="mt-6">
               <p className="text-xs font-semibold uppercase tracking-[0.28em] text-sesi-blue">
                 Sistema de Inventario
@@ -312,7 +487,15 @@ function App() {
           ) : null}
 
           <form className="mt-8 space-y-5" onSubmit={handleLogin}>
-            <div className="space-y-5">
+            <div className="rounded-[1.75rem] border border-slate-200 bg-slate-50/80 p-4 sm:p-5">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-sesi-ink">Identificacao do usuario</p>
+                <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  acesso seguro
+                </span>
+              </div>
+
+              <div className="space-y-5">
               <label className="block space-y-2">
                 <span className="text-sm font-medium text-slate-700">E-mail</span>
                 <input
@@ -339,16 +522,17 @@ function App() {
                 />
               </label>
 
-              {loginError ? (
-                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                  {loginError}
-                </div>
-              ) : null}
+                {loginError ? (
+                  <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                    {loginError}
+                  </div>
+                ) : null}
+              </div>
             </div>
 
             <button
               type="submit"
-              className="w-full rounded-2xl bg-sesi-blue px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-sesi-navy"
+              className="w-full rounded-2xl bg-[linear-gradient(135deg,#0057b8,#0b3b75)] px-5 py-3.5 text-sm font-semibold text-white shadow-lg shadow-sky-900/15 transition hover:opacity-95"
             >
               Entrar
             </button>
@@ -368,7 +552,7 @@ function App() {
   return (
     <main className="mx-auto min-h-screen w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
       <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-xl shadow-slate-900/8">
-        <header className="border-b border-slate-200 bg-white px-5 py-5 sm:px-8">
+        <header className="border-b border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fbff)] px-5 py-5 sm:px-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center justify-between gap-4">
               <Brand />
@@ -387,7 +571,7 @@ function App() {
                 <button
                   type="button"
                   onClick={handleInstall}
-                  className="rounded-2xl bg-sesi-blue px-4 py-2 text-sm font-semibold text-white transition hover:bg-sesi-navy"
+                  className="rounded-2xl bg-[linear-gradient(135deg,#0057b8,#0b3b75)] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-95"
                 >
                   Instalar
                 </button>
@@ -404,7 +588,8 @@ function App() {
         </header>
 
         <div className="space-y-6 px-5 py-6 sm:px-8">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="rounded-[1.75rem] border border-slate-200 bg-[linear-gradient(135deg,#f8fbff,#ffffff)] px-5 py-5 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h1 className="text-2xl font-bold text-sesi-ink">Painel de inventario</h1>
               <p className="mt-1 text-sm text-slate-500">
@@ -414,6 +599,7 @@ function App() {
             <div className="flex items-center gap-3 text-sm text-slate-500">
               <span className="rounded-full bg-slate-100 px-3 py-1 font-semibold">{authModeLabel}</span>
             </div>
+          </div>
           </div>
 
           {showInstallGuide ? (
@@ -641,6 +827,130 @@ function App() {
                     </p>
                   </div>
                 )}
+              </div>
+            </article>
+
+            <article className={`${activeSection === 'relatorios' ? 'block xl:col-span-2' : 'hidden'} rounded-[1.75rem] border border-slate-200 bg-white p-5`}>
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-sesi-ink">Relatorios</h2>
+                  <p className="text-sm text-slate-500">
+                    Visao geral e detalhada com exportacao simples para Excel, LibreOffice e impressao.
+                  </p>
+                </div>
+
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={exportReportXlsx}
+                    className="rounded-2xl bg-[linear-gradient(135deg,#0057b8,#0b3b75)] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-95"
+                  >
+                    Exportar Excel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={exportReportCsv}
+                    className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                  >
+                    Exportar CSV
+                  </button>
+                  <button
+                    type="button"
+                    onClick={printReport}
+                    className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                  >
+                    Imprimir / PDF
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-4 lg:grid-cols-3">
+                <StatCard label="Itens no relatorio" value={filteredItems.length} help="Resultado com os filtros atuais" />
+                <StatCard label="Locais no relatorio" value={new Set(filteredItems.map((item) => item.location)).size} help="Ambientes incluidos nesta exportacao" />
+                <StatCard label="Em manutencao" value={filteredItems.filter((item) => item.condition === 'Requer manutencao').length} help="Itens com maior prioridade de acompanhamento" />
+              </div>
+
+              <div className="mt-6 grid gap-4 lg:grid-cols-2">
+                <ReportSummaryTable title="Resumo por categoria" rows={reportCategoryRows} />
+                <ReportSummaryTable title="Resumo por estado" rows={reportConditionRows} />
+              </div>
+
+              <div className="mt-6 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-sesi-blue">Detalhamento do relatorio</h3>
+                    <p className="mt-1 text-sm text-slate-500">Compatível com uso no celular, PC, Excel e LibreOffice.</p>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <input
+                      type="search"
+                      value={filters.search}
+                      onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))}
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-sesi-blue"
+                      placeholder="Buscar"
+                    />
+                    <select
+                      value={filters.category}
+                      onChange={(event) => setFilters((current) => ({ ...current, category: event.target.value }))}
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-sesi-blue"
+                    >
+                      <option>Todos</option>
+                      <option>Oficina</option>
+                      <option>Maker</option>
+                      <option>Aula</option>
+                    </select>
+                    <select
+                      value={filters.condition}
+                      onChange={(event) => setFilters((current) => ({ ...current, condition: event.target.value }))}
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-sesi-blue"
+                    >
+                      <option>Todos</option>
+                      <option>Excelente</option>
+                      <option>Bom</option>
+                      <option>Regular</option>
+                      <option>Requer manutencao</option>
+                    </select>
+                  </div>
+                </div>
+
+                {reportFeedback ? (
+                  <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                    {reportFeedback}
+                  </div>
+                ) : null}
+
+                <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+                  <table className="min-w-full text-left text-sm">
+                    <thead className="bg-slate-50 text-slate-600">
+                      <tr>
+                        <th className="px-4 py-3 font-semibold">Item</th>
+                        <th className="px-4 py-3 font-semibold">Categoria</th>
+                        <th className="px-4 py-3 font-semibold">Localizacao</th>
+                        <th className="px-4 py-3 font-semibold">Estado</th>
+                        <th className="px-4 py-3 font-semibold">Aquisicao</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredItems.length ? (
+                        filteredItems.map((item) => (
+                          <tr key={`report-${item.id}`} className="border-t border-slate-100">
+                            <td className="px-4 py-3 font-medium text-sesi-ink">{item.name}</td>
+                            <td className="px-4 py-3 text-slate-600">{item.category}</td>
+                            <td className="px-4 py-3 text-slate-600">{item.location}</td>
+                            <td className="px-4 py-3 text-slate-600">{item.condition}</td>
+                            <td className="px-4 py-3 text-slate-600">{formatDate(item.acquisitionDate)}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan="5" className="px-4 py-8 text-center text-slate-500">
+                            Nenhum item disponivel para o relatorio com os filtros atuais.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </article>
           </section>

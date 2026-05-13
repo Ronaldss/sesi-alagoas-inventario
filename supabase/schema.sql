@@ -11,7 +11,19 @@ create table if not exists public.inventory_items (
   id uuid primary key default gen_random_uuid(),
   created_by uuid not null references public.profiles(id) on delete restrict,
   name text not null,
-  category text not null,
+  category text not null check (
+    category in (
+      'Ciências Humanas',
+      'Linguagem',
+      'Ciências da Natureza',
+      'Matemática',
+      'Robótica',
+      'Informática',
+      'Maker',
+      'Sala de Recurso',
+      'Biblioteca'
+    )
+  ),
   location text not null,
   condition text not null check (condition in ('Excelente', 'Bom', 'Regular', 'Requer manutencao')),
   acquisition_date date not null,
@@ -23,6 +35,22 @@ create table if not exists public.inventory_items (
 
 alter table public.inventory_items
 drop constraint if exists inventory_items_category_check;
+
+alter table public.inventory_items
+add constraint inventory_items_category_check
+check (
+  category in (
+    'Ciências Humanas',
+    'Linguagem',
+    'Ciências da Natureza',
+    'Matemática',
+    'Robótica',
+    'Informática',
+    'Maker',
+    'Sala de Recurso',
+    'Biblioteca'
+  )
+);
 
 create or replace function public.set_updated_at()
 returns trigger

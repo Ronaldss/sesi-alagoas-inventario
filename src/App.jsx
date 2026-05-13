@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { inventoryApi } from './lib/inventory-api'
 
 const emptyForm = {
@@ -263,6 +263,68 @@ function downloadBlob(blob, filename) {
   URL.revokeObjectURL(url)
 }
 
+function ConfirmDialog({ item, pending, onCancel, onConfirm }) {
+  if (!item) {
+    return null
+  }
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-end justify-center bg-slate-950/45 px-4 py-6 sm:items-center">
+      <div className="w-full max-w-md rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-2xl shadow-slate-950/20">
+        <div className="flex items-start gap-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-700">
+            <svg viewBox="0 0 20 20" fill="currentColor" className="h-6 w-6">
+              <path
+                fillRule="evenodd"
+                d="M8.257 3.099c.765-1.36 2.72-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.981-1.742 2.981H4.42c-1.53 0-2.492-1.647-1.742-2.98l5.58-9.92ZM11 13a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm-1-7a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 6Z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-rose-700">Confirmar exclusao</p>
+            <h3 className="mt-2 text-xl font-bold text-sesi-ink">Excluir item do inventario?</h3>
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              O item <span className="font-semibold text-sesi-ink">{item.name}</span> sera removido da base. Essa acao nao podera ser desfeita.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-3 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={pending}
+            className="rounded-2xl bg-rose-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            {pending ? 'Excluindo...' : 'Confirmar exclusao'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function FloatingActionButton({ onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="fixed bottom-5 right-5 z-30 inline-flex items-center gap-3 rounded-full bg-[linear-gradient(135deg,#0057b8,#0b3b75)] px-5 py-3 text-sm font-semibold text-white shadow-xl shadow-sky-900/30 transition hover:opacity-95"
+    >
+      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/20 text-lg leading-none">+</span>
+      Novo item
+    </button>
+  )
+}
+
 function ReportSummaryTable({ title, rows }) {
   return (
     <div className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm">
@@ -365,10 +427,12 @@ function App() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [itemPendingDelete, setItemPendingDelete] = useState('')
   const [editingItemId, setEditingItemId] = useState('')
+  const [confirmingDeleteItemId, setConfirmingDeleteItemId] = useState('')
   const [screenError, setScreenError] = useState('')
   const [showInstallGuide, setShowInstallGuide] = useState(() => shouldShowInstallGuideOnLoad())
   const [isIosDevice] = useState(() => detectIos())
   const [reportFeedback, setReportFeedback] = useState('')
+  const formCardRef = useRef(null)
 
   useEffect(() => {
     async function bootstrap() {
@@ -480,6 +544,7 @@ function App() {
   const displayName = formatSessionName(session)
   const isEditing = Boolean(editingItemId)
   const editingItem = items.find((item) => item.id === editingItemId) ?? null
+  const itemBeingConfirmed = items.find((item) => item.id === confirmingDeleteItemId) ?? null
 
   const canEditItem = (item) => session.role === 'Supervisor' || item.createdBy === session.id
   const canDeleteItem = () => session.role === 'Supervisor'
@@ -527,11 +592,22 @@ function App() {
     setSelectedFile(null)
     setFeedback('')
     setActiveSection('cadastro')
+    window.requestAnimationFrame(() => {
+      formCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
   }
 
   const handleCancelEdit = () => {
     resetFormState()
     setFeedback('')
+  }
+
+  const handleCreateNewItem = () => {
+    handleCancelEdit()
+    setActiveSection('cadastro')
+    window.requestAnimationFrame(() => {
+      formCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
   }
 
   const handleSubmit = async (event) => {
@@ -562,12 +638,6 @@ function App() {
   }
 
   const handleDeleteItem = async (item) => {
-    const confirmed = window.confirm(`Deseja excluir o item "${item.name}"?`)
-
-    if (!confirmed) {
-      return
-    }
-
     setItemPendingDelete(item.id)
     setFeedback('')
 
@@ -585,6 +655,7 @@ function App() {
       setFeedback(error.message || 'Nao foi possivel excluir o item.')
     } finally {
       setItemPendingDelete('')
+      setConfirmingDeleteItemId('')
     }
   }
 
@@ -809,6 +880,15 @@ function App() {
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+      <ConfirmDialog
+        item={itemBeingConfirmed}
+        pending={itemPendingDelete === confirmingDeleteItemId}
+        onCancel={() => setConfirmingDeleteItemId('')}
+        onConfirm={() => handleDeleteItem(itemBeingConfirmed)}
+      />
+
+      {activeSection !== 'relatorios' ? <FloatingActionButton onClick={handleCreateNewItem} /> : null}
+
       <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-xl shadow-slate-900/8">
         <header className="border-b border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fbff)] px-5 py-5 sm:px-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -895,13 +975,19 @@ function App() {
 
           {activeSection !== 'relatorios' ? (
             <section className="grid gap-6 xl:grid-cols-[420px_1fr]">
-              <article className={`${activeSection === 'consulta' ? 'hidden xl:block' : 'block'} rounded-[1.75rem] border border-slate-200 bg-slate-50/60 p-5`}>
+              <article ref={formCardRef} className={`${activeSection === 'consulta' ? 'hidden xl:block' : 'block'} rounded-[1.75rem] border border-slate-200 bg-slate-50/60 p-5`}>
               <div>
                 <h2 className="text-xl font-bold text-sesi-ink">{isEditing ? 'Edicao de item' : 'Cadastro de item'}</h2>
                 <p className="text-sm text-slate-500">
                   {isEditing ? 'Atualize os dados e salve as alteracoes.' : 'Preencha apenas as informacoes essenciais.'}
                 </p>
               </div>
+
+              {isEditing && editingItem ? (
+                <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
+                  Editando: <span className="font-semibold">{editingItem.name}</span>
+                </div>
+              ) : null}
 
               <div className="mt-4 rounded-2xl bg-white px-4 py-3 text-sm text-slate-600">
                 Campos obrigatorios: nome, categoria, localizacao, estado e data de aquisicao.
@@ -1065,6 +1151,9 @@ function App() {
                                 {item.category}
                               </span>
                               <ConditionBadge value={item.condition} />
+                              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">
+                                Atualizado em {formatDate(item.updatedAt ?? item.createdAt, { dateStyle: 'short', timeStyle: 'short' })}
+                              </span>
                             </div>
                             <h3 className="mt-3 text-lg font-bold text-sesi-ink">{item.name}</h3>
                           </div>
@@ -1083,7 +1172,7 @@ function App() {
                               {canDeleteItem() ? (
                                 <button
                                   type="button"
-                                  onClick={() => handleDeleteItem(item)}
+                                  onClick={() => setConfirmingDeleteItemId(item.id)}
                                   disabled={itemPendingDelete === item.id}
                                   className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-70"
                                 >

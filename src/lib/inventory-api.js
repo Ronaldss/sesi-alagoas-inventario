@@ -20,6 +20,7 @@ const seedItems = [
     notes: 'Uso compartilhado com turmas tecnicas.',
     image: '',
     createdAt: '2026-05-12T08:00:00.000Z',
+    updatedAt: '2026-05-12T08:00:00.000Z',
   },
   {
     id: crypto.randomUUID(),
@@ -32,6 +33,7 @@ const seedItems = [
     notes: 'Revisado no inicio do semestre.',
     image: '',
     createdAt: '2026-05-11T14:30:00.000Z',
+    updatedAt: '2026-05-11T14:30:00.000Z',
   },
   {
     id: crypto.randomUUID(),
@@ -44,6 +46,7 @@ const seedItems = [
     notes: 'Separar itens com desgaste nas brocas.',
     image: '',
     createdAt: '2026-05-10T10:15:00.000Z',
+    updatedAt: '2026-05-10T10:15:00.000Z',
   },
 ]
 
@@ -86,6 +89,7 @@ function toUiItem(item) {
     image: '',
     imagePath: item.image_path ?? '',
     createdAt: item.created_at,
+    updatedAt: item.updated_at ?? item.created_at,
   }
 }
 
@@ -209,7 +213,7 @@ export const inventoryApi = {
 
     const { data, error } = await supabase
       .from('inventory_items')
-      .select('id, created_by, name, category, location, condition, acquisition_date, notes, created_at, image_path')
+      .select('id, created_by, name, category, location, condition, acquisition_date, notes, created_at, updated_at, image_path')
       .order('created_at', { ascending: false })
 
     if (error) {
@@ -233,6 +237,7 @@ export const inventoryApi = {
         id: crypto.randomUUID(),
         createdBy: session.id,
         createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         image: form.image,
         imagePath: '',
       }
@@ -260,7 +265,7 @@ export const inventoryApi = {
     const { data, error } = await supabase
       .from('inventory_items')
       .insert(payload)
-      .select('id, created_by, name, category, location, condition, acquisition_date, notes, created_at, image_path')
+      .select('id, created_by, name, category, location, condition, acquisition_date, notes, created_at, updated_at, image_path')
       .single()
 
     if (error) {
@@ -281,6 +286,7 @@ export const inventoryApi = {
         ...form,
         createdBy: currentItem.createdBy ?? session.id,
         image: file ? form.image : currentItem.image,
+        updatedAt: new Date().toISOString(),
       }
 
       const nextItems = current.map((item) => (item.id === itemId ? updatedItem : item))
@@ -308,7 +314,7 @@ export const inventoryApi = {
       .from('inventory_items')
       .update(payload)
       .eq('id', itemId)
-      .select('id, created_by, name, category, location, condition, acquisition_date, notes, created_at, image_path')
+      .select('id, created_by, name, category, location, condition, acquisition_date, notes, created_at, updated_at, image_path')
       .single()
 
     if (error) {

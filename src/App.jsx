@@ -12,6 +12,7 @@ const emptyForm = {
   image: '',
 }
 
+// eslint-disable-next-line no-unused-vars
 const CATEGORY_OPTIONS = [
   'Ciências Humanas',
   'Linguagem',
@@ -24,11 +25,39 @@ const CATEGORY_OPTIONS = [
   'Biblioteca',
 ]
 
+// eslint-disable-next-line no-unused-vars
 const ROOM_OPTIONS_BY_CATEGORY = {
   'CiÃªncias Humanas': ['Sala 1', 'Sala 2', 'Sala 3'],
   Linguagem: ['Sala 1', 'Sala 2', 'Sala 3', 'Sala 4', 'Sala 5'],
   'CiÃªncias da Natureza': ['Sala 1', 'Sala 2'],
   'MatemÃ¡tica': ['Sala 1', 'Sala 2'],
+}
+
+const DEFAULT_CATEGORY = 'Ciências Humanas'
+
+const FIXED_CATEGORY_OPTIONS = [
+  'Ciências Humanas',
+  'Linguagem',
+  'Ciências da Natureza',
+  'Matemática',
+  'Robótica',
+  'Informática',
+  'Maker',
+  'Sala de Recurso',
+  'Biblioteca',
+]
+
+const FIXED_ROOM_OPTIONS_BY_CATEGORY = {
+  'Ciências Humanas': ['Sala 1', 'Sala 2', 'Sala 3'],
+  Linguagem: ['Sala 1', 'Sala 2', 'Sala 3', 'Sala 4', 'Sala 5'],
+  'Ciências da Natureza': ['Sala 1', 'Sala 2'],
+  Matemática: ['Sala 1', 'Sala 2'],
+}
+
+const INITIAL_FORM = {
+  ...emptyForm,
+  category: DEFAULT_CATEGORY,
+  room: '',
 }
 
 function buildFormFromItem(item) {
@@ -106,7 +135,7 @@ function ConditionBadge({ value }) {
   )
 }
 
-function CategorySelect({ value, onChange, placeholder, required = false, allowAll = false, options = CATEGORY_OPTIONS }) {
+function CategorySelect({ value, onChange, placeholder, required = false, allowAll = false, options = FIXED_CATEGORY_OPTIONS }) {
   return (
     <select
       value={value}
@@ -359,7 +388,7 @@ function App() {
   const [session, setSession] = useState(null)
   const [items, setItems] = useState([])
   const [loginForm, setLoginForm] = useState({ email: '', password: '' })
-  const [form, setForm] = useState(emptyForm)
+  const [form, setForm] = useState(INITIAL_FORM)
   const [filters, setFilters] = useState({ search: '', category: '', condition: 'Todos' })
   const [reportFilters, setReportFilters] = useState({ search: '', category: '', condition: 'Todos' })
   const [activeSection, setActiveSection] = useState('cadastro')
@@ -492,7 +521,7 @@ function App() {
   const isEditing = Boolean(editingItemId)
   const editingItem = items.find((item) => item.id === editingItemId) ?? null
   const itemBeingConfirmed = items.find((item) => item.id === confirmingDeleteItemId) ?? null
-  const roomOptions = ROOM_OPTIONS_BY_CATEGORY[form.category] ?? []
+  const roomOptions = FIXED_ROOM_OPTIONS_BY_CATEGORY[form.category] ?? []
   const shouldShowRoomSelect = roomOptions.length > 0
 
   const canEditItem = (item) => session.role === 'Supervisor' || item.createdBy === session.id
@@ -530,14 +559,14 @@ function App() {
   }
 
   const resetFormState = () => {
-    setForm(emptyForm)
+    setForm(INITIAL_FORM)
     setSelectedFile(null)
     setEditingItemId('')
   }
 
   const handleCategoryChange = (category) => {
     setForm((current) => {
-      const nextRoomOptions = ROOM_OPTIONS_BY_CATEGORY[category] ?? []
+      const nextRoomOptions = FIXED_ROOM_OPTIONS_BY_CATEGORY[category] ?? []
       const nextRoom = nextRoomOptions.includes(current.room) ? current.room : ''
 
       return {

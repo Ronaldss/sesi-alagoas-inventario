@@ -39,7 +39,7 @@ const seedItems = [
     id: crypto.randomUUID(),
     createdBy: 'demo-colaborador',
     name: 'Kit de Ferramentas CNC',
-    category: 'Oficina',
+    category: 'Robótica',
     location: 'Oficina de Mecanica',
     condition: 'Requer manutencao',
     acquisitionDate: '2023-11-16',

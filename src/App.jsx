@@ -3,7 +3,7 @@ import { inventoryApi } from './lib/inventory-api'
 
 const emptyForm = {
   name: '',
-  category: 'Maker',
+  category: 'Ciências Humanas',
   location: '',
   condition: 'Bom',
   acquisitionDate: '',
@@ -12,14 +12,15 @@ const emptyForm = {
 }
 
 const CATEGORY_OPTIONS = [
-  'Oficina',
-  'Maker',
   'Ciências Humanas',
   'Linguagem',
   'Ciências da Natureza',
   'Robótica',
   'Informática',
   'Matemática',
+  'Maker',
+  'Sala de Recurso',
+  'Biblioteca',
 ]
 
 function buildFormFromItem(item) {
@@ -96,89 +97,22 @@ function ConditionBadge({ value }) {
   )
 }
 
-function CategoryCombobox({ value, onChange, placeholder, required = false }) {
-  const [isOpen, setIsOpen] = useState(false)
-
-  const filteredOptions = useMemo(() => {
-    const normalizedValue = value.trim().toLowerCase()
-
-    if (!normalizedValue) {
-      return CATEGORY_OPTIONS
-    }
-
-    const matches = CATEGORY_OPTIONS.filter((option) => option.toLowerCase().includes(normalizedValue))
-    return matches.length ? matches : CATEGORY_OPTIONS
-  }, [value])
-
-  const hasCustomValue = value.trim() && !CATEGORY_OPTIONS.some((option) => option.toLowerCase() === value.trim().toLowerCase())
-
+function CategorySelect({ value, onChange, placeholder, required = false, allowAll = false }) {
   return (
-    <div className="relative">
-      <div className="relative">
-        <input
-          type="text"
-          value={value}
-          onFocus={() => setIsOpen(true)}
-          onBlur={() => window.setTimeout(() => setIsOpen(false), 120)}
-          onChange={(event) => {
-            onChange(event.target.value)
-            setIsOpen(true)
-          }}
-          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 pr-12 outline-none transition focus:border-sesi-blue"
-          placeholder={placeholder}
-          required={required}
-        />
-        <button
-          type="button"
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => setIsOpen((current) => !current)}
-          className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-500"
-          aria-label="Abrir categorias"
-        >
-          <svg viewBox="0 0 20 20" fill="currentColor" className={`h-5 w-5 transition ${isOpen ? 'rotate-180' : ''}`}>
-            <path
-              fillRule="evenodd"
-              d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.51a.75.75 0 0 1-1.08 0l-4.25-4.51a.75.75 0 0 1 .02-1.06Z"
-              clipRule="evenodd"
-            />
-          </svg>
-        </button>
-      </div>
-
-      {isOpen ? (
-        <div className="absolute left-0 right-0 z-20 mt-2 max-h-64 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-900/10">
-          <div className="space-y-1">
-            {filteredOptions.map((option) => (
-              <button
-                key={option}
-                type="button"
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => {
-                  onChange(option)
-                  setIsOpen(false)
-                }}
-                className={`w-full rounded-xl px-3 py-2 text-left text-sm transition ${
-                  option === value ? 'bg-sesi-ice font-semibold text-sesi-blue' : 'text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                {option}
-              </button>
-            ))}
-
-            {hasCustomValue ? (
-              <button
-                type="button"
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => setIsOpen(false)}
-                className="w-full rounded-xl border border-dashed border-slate-200 px-3 py-2 text-left text-sm text-slate-600 transition hover:bg-slate-50"
-              >
-                Usar "{value.trim()}"
-              </button>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
-    </div>
+    <select
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-sesi-blue"
+      required={required}
+      aria-label={placeholder}
+    >
+      {allowAll ? <option value="">{placeholder}</option> : null}
+      {CATEGORY_OPTIONS.map((option) => (
+        <option key={option} value={option}>
+          {option}
+        </option>
+      ))}
+    </select>
   )
 }
 
@@ -1004,7 +938,7 @@ function App() {
                 />
 
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <CategoryCombobox
+                  <CategorySelect
                     value={form.category}
                     onChange={(category) => setForm((current) => ({ ...current, category }))}
                     placeholder="Categoria"
@@ -1105,10 +1039,11 @@ function App() {
                     className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-sesi-blue focus:bg-white"
                     placeholder="Buscar"
                   />
-                  <CategoryCombobox
+                  <CategorySelect
                     value={filters.category}
                     onChange={(category) => setFilters((current) => ({ ...current, category }))}
-                    placeholder="Categoria"
+                    placeholder="Todas as categorias"
+                    allowAll
                   />
                   <select
                     value={filters.condition}
@@ -1256,10 +1191,11 @@ function App() {
                         placeholder="Buscar por item ou local"
                       />
                       <div className="grid gap-3 sm:grid-cols-2">
-                        <CategoryCombobox
+                        <CategorySelect
                           value={reportFilters.category}
                           onChange={(category) => setReportFilters((current) => ({ ...current, category }))}
-                          placeholder="Categoria"
+                          placeholder="Todas as categorias"
+                          allowAll
                         />
                         <select
                           value={reportFilters.condition}

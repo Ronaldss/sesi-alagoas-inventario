@@ -4,13 +4,14 @@ const SESSION_KEY = 'sesi-inventario-session'
 const ITEMS_KEY = 'sesi-inventario-items'
 
 const demoUsers = [
-  { email: 'supervisora@sesi-al.demo', password: 'sesi123', role: 'Supervisor', name: 'Nome (teste)' },
-  { email: 'colaborador@sesi-al.demo', password: 'sesi123', role: 'Colaborador', name: 'Carlos Lima' },
+  { id: 'demo-supervisor', email: 'supervisora@sesi-al.demo', password: 'sesi123', role: 'Supervisor', name: 'Nome (teste)' },
+  { id: 'demo-colaborador', email: 'colaborador@sesi-al.demo', password: 'sesi123', role: 'Colaborador', name: 'Carlos Lima' },
 ]
 
 const seedItems = [
   {
     id: crypto.randomUUID(),
+    createdBy: 'demo-supervisor',
     name: 'Impressora 3D Ender',
     category: 'Maker',
     location: 'Laboratorio Maker 01',
@@ -22,6 +23,7 @@ const seedItems = [
   },
   {
     id: crypto.randomUUID(),
+    createdBy: 'demo-supervisor',
     name: 'Projetor Epson X39',
     category: 'Linguagem',
     location: 'Sala 04',
@@ -33,6 +35,7 @@ const seedItems = [
   },
   {
     id: crypto.randomUUID(),
+    createdBy: 'demo-colaborador',
     name: 'Kit de Ferramentas CNC',
     category: 'Oficina',
     location: 'Oficina de Mecanica',
@@ -62,9 +65,18 @@ function writeStorage(key, value) {
   window.localStorage.setItem(key, JSON.stringify(value))
 }
 
+function normalizeDemoUser(session) {
+  if (!session?.email) {
+    return session
+  }
+
+  return demoUsers.find((user) => user.email === session.email) ?? session
+}
+
 function toUiItem(item) {
   return {
     id: item.id,
+    createdBy: item.created_by,
     name: item.name,
     category: item.category,
     location: item.location,
@@ -72,6 +84,7 @@ function toUiItem(item) {
     acquisitionDate: item.acquisition_date,
     notes: item.notes ?? '',
     image: '',
+    imagePath: item.image_path ?? '',
     createdAt: item.created_at,
   }
 }
@@ -93,6 +106,14 @@ async function uploadImage(file, itemId, userId) {
   }
 
   return path
+}
+
+async function deleteImage(path) {
+  if (!path || !supabase) {
+    return
+  }
+
+  await supabase.storage.from('inventory-images').remove([path])
 }
 
 async function getSignedImageUrl(path) {
@@ -134,7 +155,7 @@ export const inventoryApi = {
 
   async restoreSession() {
     if (!hasSupabaseEnv) {
-      return readStorage(SESSION_KEY, null)
+      return normalizeDemoUser(readStorage(SESSION_KEY, null))
     }
 
     const {
@@ -188,7 +209,7 @@ export const inventoryApi = {
 
     const { data, error } = await supabase
       .from('inventory_items')
-      .select('id, name, category, location, condition, acquisition_date, notes, created_at, image_path')
+      .select('id, created_by, name, category, location, condition, acquisition_date, notes, created_at, image_path')
       .order('created_at', { ascending: false })
 
     if (error) {
@@ -210,8 +231,10 @@ export const inventoryApi = {
       const payload = {
         ...form,
         id: crypto.randomUUID(),
+        createdBy: session.id,
         createdAt: new Date().toISOString(),
         image: form.image,
+        imagePath: '',
       }
 
       const current = readStorage(ITEMS_KEY, seedItems)
@@ -237,7 +260,7 @@ export const inventoryApi = {
     const { data, error } = await supabase
       .from('inventory_items')
       .insert(payload)
-      .select('id, name, category, location, condition, acquisition_date, notes, created_at, image_path')
+      .select('id, created_by, name, category, location, condition, acquisition_date, notes, created_at, image_path')
       .single()
 
     if (error) {
@@ -247,6 +270,73 @@ export const inventoryApi = {
     return {
       ...toUiItem(data),
       image: data.image_path ? await getSignedImageUrl(data.image_path) : '',
+    }
+  },
+
+  async updateItem(itemId, form, file, session, currentItem) {
+    if (!hasSupabaseEnv) {
+      const current = readStorage(ITEMS_KEY, seedItems)
+      const updatedItem = {
+        ...currentItem,
+        ...form,
+        createdBy: currentItem.createdBy ?? session.id,
+        image: file ? form.image : currentItem.image,
+      }
+
+      const nextItems = current.map((item) => (item.id === itemId ? updatedItem : item))
+      writeStorage(ITEMS_KEY, nextItems)
+      return updatedItem
+    }
+
+    let nextImagePath = currentItem.imagePath ?? null
+
+    if (file) {
+      nextImagePath = await uploadImage(file, itemId, session.id)
+    }
+
+    const payload = {
+      name: form.name,
+      category: form.category,
+      location: form.location,
+      condition: form.condition,
+      acquisition_date: form.acquisitionDate,
+      notes: form.notes || null,
+      image_path: nextImagePath,
+    }
+
+    const { data, error } = await supabase
+      .from('inventory_items')
+      .update(payload)
+      .eq('id', itemId)
+      .select('id, created_by, name, category, location, condition, acquisition_date, notes, created_at, image_path')
+      .single()
+
+    if (error) {
+      throw error
+    }
+
+    return {
+      ...toUiItem(data),
+      image: data.image_path ? await getSignedImageUrl(data.image_path) : '',
+    }
+  },
+
+  async deleteItem(item, session) {
+    if (!hasSupabaseEnv) {
+      const current = readStorage(ITEMS_KEY, seedItems)
+      const nextItems = current.filter((entry) => entry.id !== item.id)
+      writeStorage(ITEMS_KEY, nextItems)
+      return
+    }
+
+    const { error } = await supabase.from('inventory_items').delete().eq('id', item.id)
+
+    if (error) {
+      throw error
+    }
+
+    if (session.role === 'Supervisor' && item.imagePath) {
+      await deleteImage(item.imagePath)
     }
   },
 }

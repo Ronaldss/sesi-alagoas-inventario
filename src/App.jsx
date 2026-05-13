@@ -22,6 +22,18 @@ const CATEGORY_OPTIONS = [
   'Matemática',
 ]
 
+function buildFormFromItem(item) {
+  return {
+    name: item.name,
+    category: item.category,
+    location: item.location,
+    condition: item.condition,
+    acquisitionDate: item.acquisitionDate,
+    notes: item.notes ?? '',
+    image: item.image ?? '',
+  }
+}
+
 function Brand() {
   return (
     <div className="flex items-center gap-3">
@@ -351,6 +363,8 @@ function App() {
   const [selectedFile, setSelectedFile] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [itemPendingDelete, setItemPendingDelete] = useState('')
+  const [editingItemId, setEditingItemId] = useState('')
   const [screenError, setScreenError] = useState('')
   const [showInstallGuide, setShowInstallGuide] = useState(() => shouldShowInstallGuideOnLoad())
   const [isIosDevice] = useState(() => detectIos())
@@ -464,6 +478,11 @@ function App() {
 
   const authModeLabel = inventoryApi.isRemote ? 'Supabase conectado' : 'Modo demonstracao'
   const displayName = formatSessionName(session)
+  const isEditing = Boolean(editingItemId)
+  const editingItem = items.find((item) => item.id === editingItemId) ?? null
+
+  const canEditItem = (item) => session.role === 'Supervisor' || item.createdBy === session.id
+  const canDeleteItem = () => session.role === 'Supervisor'
 
   const handleLogin = async (event) => {
     event.preventDefault()
@@ -496,23 +515,76 @@ function App() {
     reader.readAsDataURL(file)
   }
 
+  const resetFormState = () => {
+    setForm(emptyForm)
+    setSelectedFile(null)
+    setEditingItemId('')
+  }
+
+  const handleEditItem = (item) => {
+    setEditingItemId(item.id)
+    setForm(buildFormFromItem(item))
+    setSelectedFile(null)
+    setFeedback('')
+    setActiveSection('cadastro')
+  }
+
+  const handleCancelEdit = () => {
+    resetFormState()
+    setFeedback('')
+  }
+
   const handleSubmit = async (event) => {
     event.preventDefault()
     setIsSubmitting(true)
     setFeedback('')
 
     try {
-      const created = await inventoryApi.createItem(form, selectedFile, session)
-      setItems((current) => [created, ...current])
-      setForm(emptyForm)
-      setSelectedFile(null)
-      setFeedback(inventoryApi.isRemote ? 'Item salvo no Supabase.' : 'Item cadastrado com sucesso.')
+      if (editingItem && canEditItem(editingItem)) {
+        const updated = await inventoryApi.updateItem(editingItem.id, form, selectedFile, session, editingItem)
+        setItems((current) => current.map((item) => (item.id === editingItem.id ? updated : item)))
+        resetFormState()
+        setFeedback('Item atualizado com sucesso.')
+      } else {
+        const created = await inventoryApi.createItem(form, selectedFile, session)
+        setItems((current) => [created, ...current])
+        resetFormState()
+        setFeedback(inventoryApi.isRemote ? 'Item salvo no Supabase.' : 'Item cadastrado com sucesso.')
+      }
+
       setActiveSection('consulta')
       window.setTimeout(() => setFeedback(''), 3000)
     } catch (error) {
       setFeedback(error.message || 'Nao foi possivel salvar o item.')
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  const handleDeleteItem = async (item) => {
+    const confirmed = window.confirm(`Deseja excluir o item "${item.name}"?`)
+
+    if (!confirmed) {
+      return
+    }
+
+    setItemPendingDelete(item.id)
+    setFeedback('')
+
+    try {
+      await inventoryApi.deleteItem(item, session)
+      setItems((current) => current.filter((entry) => entry.id !== item.id))
+
+      if (editingItemId === item.id) {
+        resetFormState()
+      }
+
+      setFeedback('Item excluido com sucesso.')
+      window.setTimeout(() => setFeedback(''), 3000)
+    } catch (error) {
+      setFeedback(error.message || 'Nao foi possivel excluir o item.')
+    } finally {
+      setItemPendingDelete('')
     }
   }
 
@@ -803,6 +875,18 @@ function App() {
             </div>
           ) : null}
 
+          {feedback ? (
+            <div
+              className={`rounded-2xl px-4 py-3 text-sm ${
+                feedback.toLowerCase().includes('nao foi')
+                  ? 'border border-rose-200 bg-rose-50 text-rose-700'
+                  : 'border border-emerald-200 bg-emerald-50 text-emerald-700'
+              }`}
+            >
+              {feedback}
+            </div>
+          ) : null}
+
           <section className="grid gap-4 md:grid-cols-3">
             <StatCard label="Itens cadastrados" value={stats.total} help="Total atual do inventario" />
             <StatCard label="Locais mapeados" value={stats.locations} help="Ambientes com itens registrados" />
@@ -813,8 +897,10 @@ function App() {
             <section className="grid gap-6 xl:grid-cols-[420px_1fr]">
               <article className={`${activeSection === 'consulta' ? 'hidden xl:block' : 'block'} rounded-[1.75rem] border border-slate-200 bg-slate-50/60 p-5`}>
               <div>
-                <h2 className="text-xl font-bold text-sesi-ink">Cadastro de item</h2>
-                <p className="text-sm text-slate-500">Preencha apenas as informacoes essenciais.</p>
+                <h2 className="text-xl font-bold text-sesi-ink">{isEditing ? 'Edicao de item' : 'Cadastro de item'}</h2>
+                <p className="text-sm text-slate-500">
+                  {isEditing ? 'Atualize os dados e salve as alteracoes.' : 'Preencha apenas as informacoes essenciais.'}
+                </p>
               </div>
 
               <div className="mt-4 rounded-2xl bg-white px-4 py-3 text-sm text-slate-600">
@@ -898,25 +984,23 @@ function App() {
                   ) : null}
                 </div>
 
-                {feedback ? (
-                  <div
-                    className={`rounded-2xl px-4 py-3 text-sm ${
-                      feedback.toLowerCase().includes('nao foi')
-                        ? 'border border-rose-200 bg-rose-50 text-rose-700'
-                        : 'border border-emerald-200 bg-emerald-50 text-emerald-700'
-                    }`}
-                  >
-                    {feedback}
-                  </div>
-                ) : null}
-
                 <button
                   type="submit"
                   disabled={isSubmitting}
                   className="w-full rounded-2xl bg-sesi-blue px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-sesi-navy disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  {isSubmitting ? 'Salvando...' : 'Salvar item'}
+                  {isSubmitting ? 'Salvando...' : isEditing ? 'Salvar alteracoes' : 'Salvar item'}
                 </button>
+
+                {isEditing ? (
+                  <button
+                    type="button"
+                    onClick={handleCancelEdit}
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-5 py-3.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                  >
+                    Cancelar edicao
+                  </button>
+                ) : null}
               </form>
               </article>
 
@@ -984,7 +1068,30 @@ function App() {
                             </div>
                             <h3 className="mt-3 text-lg font-bold text-sesi-ink">{item.name}</h3>
                           </div>
-                          <p className="text-sm text-slate-500">{item.location}</p>
+                          <div className="flex flex-col items-start gap-3 lg:items-end">
+                            <p className="text-sm text-slate-500">{item.location}</p>
+                            <div className="flex flex-wrap gap-2">
+                              {canEditItem(item) ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditItem(item)}
+                                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+                                >
+                                  Editar
+                                </button>
+                              ) : null}
+                              {canDeleteItem() ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteItem(item)}
+                                  disabled={itemPendingDelete === item.id}
+                                  className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-70"
+                                >
+                                  {itemPendingDelete === item.id ? 'Excluindo...' : 'Excluir'}
+                                </button>
+                              ) : null}
+                            </div>
+                          </div>
                         </div>
 
                         <div className="grid gap-2 text-sm text-slate-600 sm:grid-cols-2">

@@ -24,6 +24,7 @@ create table if not exists public.inventory_items (
       'Biblioteca'
     )
   ),
+  room text,
   location text not null,
   condition text not null check (condition in ('Excelente', 'Bom', 'Regular', 'Requer manutencao')),
   acquisition_date date not null,

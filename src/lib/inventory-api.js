@@ -14,6 +14,7 @@ const seedItems = [
     createdBy: 'demo-supervisor',
     name: 'Impressora 3D Ender',
     category: 'Maker',
+    room: '',
     location: 'Laboratorio Maker 01',
     condition: 'Bom',
     acquisitionDate: '2025-02-12',
@@ -27,6 +28,7 @@ const seedItems = [
     createdBy: 'demo-supervisor',
     name: 'Projetor Epson X39',
     category: 'Linguagem',
+    room: 'Sala 4',
     location: 'Sala 04',
     condition: 'Excelente',
     acquisitionDate: '2024-08-02',
@@ -40,6 +42,7 @@ const seedItems = [
     createdBy: 'demo-colaborador',
     name: 'Kit de Ferramentas CNC',
     category: 'Robótica',
+    room: '',
     location: 'Oficina de Mecanica',
     condition: 'Requer manutencao',
     acquisitionDate: '2023-11-16',
@@ -82,6 +85,7 @@ function toUiItem(item) {
     createdBy: item.created_by,
     name: item.name,
     category: item.category,
+    room: item.room ?? '',
     location: item.location,
     condition: item.condition,
     acquisitionDate: item.acquisition_date,
@@ -213,7 +217,7 @@ export const inventoryApi = {
 
     const { data, error } = await supabase
       .from('inventory_items')
-      .select('id, created_by, name, category, location, condition, acquisition_date, notes, created_at, updated_at, image_path')
+      .select('id, created_by, name, category, room, location, condition, acquisition_date, notes, created_at, updated_at, image_path')
       .order('created_at', { ascending: false })
 
     if (error) {
@@ -255,6 +259,7 @@ export const inventoryApi = {
       created_by: session.id,
       name: form.name,
       category: form.category,
+      room: form.room || null,
       location: form.location,
       condition: form.condition,
       acquisition_date: form.acquisitionDate,
@@ -265,7 +270,7 @@ export const inventoryApi = {
     const { data, error } = await supabase
       .from('inventory_items')
       .insert(payload)
-      .select('id, created_by, name, category, location, condition, acquisition_date, notes, created_at, updated_at, image_path')
+      .select('id, created_by, name, category, room, location, condition, acquisition_date, notes, created_at, updated_at, image_path')
       .single()
 
     if (error) {
@@ -303,6 +308,7 @@ export const inventoryApi = {
     const payload = {
       name: form.name,
       category: form.category,
+      room: form.room || null,
       location: form.location,
       condition: form.condition,
       acquisition_date: form.acquisitionDate,
@@ -314,7 +320,7 @@ export const inventoryApi = {
       .from('inventory_items')
       .update(payload)
       .eq('id', itemId)
-      .select('id, created_by, name, category, location, condition, acquisition_date, notes, created_at, updated_at, image_path')
+      .select('id, created_by, name, category, room, location, condition, acquisition_date, notes, created_at, updated_at, image_path')
       .single()
 
     if (error) {

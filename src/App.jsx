@@ -3,6 +3,7 @@ import { inventoryApi } from './lib/inventory-api'
 
 const emptyForm = {
   name: '',
+  room: '',
   category: 'Ciências Humanas',
   location: '',
   condition: 'Bom',
@@ -23,9 +24,17 @@ const CATEGORY_OPTIONS = [
   'Biblioteca',
 ]
 
+const ROOM_OPTIONS_BY_CATEGORY = {
+  'CiÃªncias Humanas': ['Sala 1', 'Sala 2', 'Sala 3'],
+  Linguagem: ['Sala 1', 'Sala 2', 'Sala 3', 'Sala 4', 'Sala 5'],
+  'CiÃªncias da Natureza': ['Sala 1', 'Sala 2'],
+  'MatemÃ¡tica': ['Sala 1', 'Sala 2'],
+}
+
 function buildFormFromItem(item) {
   return {
     name: item.name,
+    room: item.room ?? '',
     category: item.category,
     location: item.location,
     condition: item.condition,
@@ -97,7 +106,7 @@ function ConditionBadge({ value }) {
   )
 }
 
-function CategorySelect({ value, onChange, placeholder, required = false, allowAll = false }) {
+function CategorySelect({ value, onChange, placeholder, required = false, allowAll = false, options = CATEGORY_OPTIONS }) {
   return (
     <select
       value={value}
@@ -107,7 +116,7 @@ function CategorySelect({ value, onChange, placeholder, required = false, allowA
       aria-label={placeholder}
     >
       {allowAll ? <option value="">{placeholder}</option> : null}
-      {CATEGORY_OPTIONS.map((option) => (
+      {options.map((option) => (
         <option key={option} value={option}>
           {option}
         </option>
@@ -307,6 +316,7 @@ function ReportDetailCard({ item }) {
       </div>
       <div className="mt-4 grid gap-2 text-sm text-slate-600">
         <p><span className="font-semibold text-sesi-ink">Categoria:</span> {item.category}</p>
+        {item.room ? <p><span className="font-semibold text-sesi-ink">Sala:</span> {item.room}</p> : null}
         <p><span className="font-semibold text-sesi-ink">Aquisicao:</span> {formatDate(item.acquisitionDate)}</p>
         <p><span className="font-semibold text-sesi-ink">Cadastro:</span> {formatDate(item.createdAt, { dateStyle: 'short', timeStyle: 'short' })}</p>
         {item.notes ? <p><span className="font-semibold text-sesi-ink">Observacoes:</span> {item.notes}</p> : null}
@@ -410,7 +420,8 @@ function App() {
       items.filter((item) => {
         const matchesSearch =
           item.name.toLowerCase().includes(filters.search.toLowerCase()) ||
-          item.location.toLowerCase().includes(filters.search.toLowerCase())
+          item.location.toLowerCase().includes(filters.search.toLowerCase()) ||
+          (item.room ?? '').toLowerCase().includes(filters.search.toLowerCase())
         const matchesCategory = !filters.category || item.category === filters.category
         const matchesCondition = filters.condition === 'Todos' || item.condition === filters.condition
 
@@ -424,7 +435,8 @@ function App() {
       items.filter((item) => {
         const matchesSearch =
           item.name.toLowerCase().includes(reportFilters.search.toLowerCase()) ||
-          item.location.toLowerCase().includes(reportFilters.search.toLowerCase())
+          item.location.toLowerCase().includes(reportFilters.search.toLowerCase()) ||
+          (item.room ?? '').toLowerCase().includes(reportFilters.search.toLowerCase())
         const matchesCategory = !reportFilters.category || item.category === reportFilters.category
         const matchesCondition =
           reportFilters.condition === 'Todos' || item.condition === reportFilters.condition
@@ -465,6 +477,7 @@ function App() {
       filteredReportItems.map((item) => ({
         'Nome do item': item.name,
         Categoria: item.category,
+        Sala: item.room || '',
         Localizacao: item.location,
         'Estado de conservacao': item.condition,
         'Data de aquisicao': formatDate(item.acquisitionDate),
@@ -479,6 +492,8 @@ function App() {
   const isEditing = Boolean(editingItemId)
   const editingItem = items.find((item) => item.id === editingItemId) ?? null
   const itemBeingConfirmed = items.find((item) => item.id === confirmingDeleteItemId) ?? null
+  const roomOptions = ROOM_OPTIONS_BY_CATEGORY[form.category] ?? []
+  const shouldShowRoomSelect = roomOptions.length > 0
 
   const canEditItem = (item) => session.role === 'Supervisor' || item.createdBy === session.id
   const canDeleteItem = () => session.role === 'Supervisor'
@@ -518,6 +533,19 @@ function App() {
     setForm(emptyForm)
     setSelectedFile(null)
     setEditingItemId('')
+  }
+
+  const handleCategoryChange = (category) => {
+    setForm((current) => {
+      const nextRoomOptions = ROOM_OPTIONS_BY_CATEGORY[category] ?? []
+      const nextRoom = nextRoomOptions.includes(current.room) ? current.room : ''
+
+      return {
+        ...current,
+        category,
+        room: nextRoom,
+      }
+    })
   }
 
   const handleEditItem = (item) => {
@@ -652,6 +680,7 @@ function App() {
           <tr>
             <td>${item.name}</td>
             <td>${item.category}</td>
+            <td>${item.room || '-'}</td>
             <td>${item.location}</td>
             <td>${item.condition}</td>
             <td>${formatDate(item.acquisitionDate)}</td>
@@ -692,6 +721,7 @@ function App() {
               <tr>
                 <th>Nome do item</th>
                 <th>Categoria</th>
+                <th>Sala</th>
                 <th>Localizacao</th>
                 <th>Estado</th>
                 <th>Aquisicao</th>
@@ -937,13 +967,23 @@ function App() {
                   required
                 />
 
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className={`grid gap-4 ${shouldShowRoomSelect ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
                   <CategorySelect
                     value={form.category}
-                    onChange={(category) => setForm((current) => ({ ...current, category }))}
+                    onChange={handleCategoryChange}
                     placeholder="Categoria"
                     required
                   />
+
+                  {shouldShowRoomSelect ? (
+                    <CategorySelect
+                      value={form.room}
+                      onChange={(room) => setForm((current) => ({ ...current, room }))}
+                      placeholder="Sala"
+                      required
+                      options={roomOptions}
+                    />
+                  ) : null}
 
                   <select
                     value={form.condition}
@@ -1121,6 +1161,7 @@ function App() {
                         <div className="grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
                           <p>Aquisicao: {new Intl.DateTimeFormat('pt-BR').format(new Date(item.acquisitionDate))}</p>
                           <p>Registro: {new Intl.DateTimeFormat('pt-BR').format(new Date(item.createdAt))}</p>
+                          {item.room ? <p>Sala: {item.room}</p> : null}
                         </div>
 
                         {item.notes ? <p className="text-sm leading-6 text-slate-600">{item.notes}</p> : null}
@@ -1267,6 +1308,7 @@ function App() {
                           <tr>
                             <th className="px-4 py-3 font-semibold">Item</th>
                             <th className="px-4 py-3 font-semibold">Categoria</th>
+                            <th className="px-4 py-3 font-semibold">Sala</th>
                             <th className="px-4 py-3 font-semibold">Localizacao</th>
                             <th className="px-4 py-3 font-semibold">Estado</th>
                             <th className="px-4 py-3 font-semibold">Aquisicao</th>
@@ -1278,6 +1320,7 @@ function App() {
                               <tr key={`report-${item.id}`} className="border-t border-slate-100">
                                 <td className="px-4 py-3 font-medium text-sesi-ink">{item.name}</td>
                                 <td className="px-4 py-3 text-slate-600">{item.category}</td>
+                                <td className="px-4 py-3 text-slate-600">{item.room || '-'}</td>
                                 <td className="px-4 py-3 text-slate-600">{item.location}</td>
                                 <td className="px-4 py-3 text-slate-600">{item.condition}</td>
                                 <td className="px-4 py-3 text-slate-600">{formatDate(item.acquisitionDate)}</td>
@@ -1285,7 +1328,7 @@ function App() {
                             ))
                           ) : (
                             <tr>
-                              <td colSpan="5" className="px-4 py-8 text-center text-slate-500">
+                              <td colSpan="6" className="px-4 py-8 text-center text-slate-500">
                                 Nenhum item disponivel para o relatorio com os filtros atuais.
                               </td>
                             </tr>

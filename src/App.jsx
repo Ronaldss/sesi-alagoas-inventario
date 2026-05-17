@@ -384,6 +384,27 @@ function ReportHeaderCard({ totalItems, totalLocations, totalMaintenance }) {
   )
 }
 
+function UnitSelect({ units, value, onChange }) {
+  if (!units.length) {
+    return null
+  }
+
+  return (
+    <select
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-sesi-ink outline-none transition focus:border-sesi-blue"
+      aria-label="Selecionar unidade"
+    >
+      {units.map((unit) => (
+        <option key={unit.id} value={unit.id}>
+          {unit.code} - {unit.description}
+        </option>
+      ))}
+    </select>
+  )
+}
+
 function App() {
   const [session, setSession] = useState(null)
   const [items, setItems] = useState([])
@@ -410,10 +431,10 @@ function App() {
   useEffect(() => {
     async function bootstrap() {
       try {
-        const [restoredSession, loadedItems] = await Promise.all([
-          inventoryApi.restoreSession(),
-          inventoryApi.listItems(),
-        ])
+        const restoredSession = await inventoryApi.restoreSession()
+        const loadedItems = restoredSession?.activeUnitId
+          ? await inventoryApi.listItems(restoredSession.activeUnitId)
+          : []
 
         setSession(restoredSession)
         setItems(loadedItems)
@@ -518,6 +539,7 @@ function App() {
 
   const authModeLabel = inventoryApi.isRemote ? 'Supabase conectado' : 'Modo demonstracao'
   const displayName = formatSessionName(session)
+  const activeUnit = session?.units?.find((unit) => unit.id === session.activeUnitId) ?? null
   const isEditing = Boolean(editingItemId)
   const editingItem = items.find((item) => item.id === editingItemId) ?? null
   const itemBeingConfirmed = items.find((item) => item.id === confirmingDeleteItemId) ?? null
@@ -534,9 +556,33 @@ function App() {
 
     try {
       const user = await inventoryApi.login(loginForm)
+      const loadedItems = user.activeUnitId ? await inventoryApi.listItems(user.activeUnitId) : []
       setSession(user)
+      setItems(loadedItems)
     } catch (error) {
       setLoginError(error.message || 'Nao foi possivel entrar.')
+    }
+  }
+
+  const handleUnitChange = async (unitId) => {
+    if (!session || unitId === session.activeUnitId) {
+      return
+    }
+
+    setIsLoading(true)
+    setFeedback('')
+
+    try {
+      const nextSession = await inventoryApi.setActiveUnit(session, unitId)
+      const loadedItems = await inventoryApi.listItems(unitId)
+      setSession(nextSession)
+      setItems(loadedItems)
+      resetFormState()
+      setActiveSection('consulta')
+    } catch (error) {
+      setFeedback(error.message || 'Nao foi possivel trocar a unidade ativa.')
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -898,6 +944,9 @@ function App() {
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <SectionToggle value={activeSection} onChange={setActiveSection} />
+              {session?.units?.length ? (
+                <UnitSelect units={session.units} value={session.activeUnitId} onChange={handleUnitChange} />
+              ) : null}
               {installPrompt ? (
                 <button
                   type="button"
@@ -925,6 +974,12 @@ function App() {
               <h1 className="text-2xl font-bold text-sesi-ink">Painel de inventario</h1>
               <p className="mt-1 text-sm text-slate-500">
                 Usuario: <span className="font-semibold text-sesi-ink">{displayName}</span> - {session.role}
+              </p>
+              <p className="mt-1 text-sm text-slate-500">
+                Unidade ativa:{' '}
+                <span className="font-semibold text-sesi-ink">
+                  {activeUnit ? `${activeUnit.code} - ${activeUnit.description}` : 'Nenhuma unidade vinculada'}
+                </span>
               </p>
             </div>
             <div className="flex items-center gap-3 text-sm text-slate-500">

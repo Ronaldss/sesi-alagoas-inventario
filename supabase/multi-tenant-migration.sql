@@ -88,6 +88,8 @@ create or replace function public.user_has_unit_access(target_unit_id uuid)
 returns boolean
 language sql
 stable
+security definer
+set search_path = public
 as $$
   select exists (
     select 1
@@ -101,6 +103,8 @@ create or replace function public.user_role()
 returns text
 language sql
 stable
+security definer
+set search_path = public
 as $$
   select role
   from public.profiles

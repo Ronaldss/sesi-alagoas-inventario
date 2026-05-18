@@ -3,19 +3,29 @@ import { hasSupabaseEnv, supabase } from './supabase'
 const SESSION_KEY = 'sesi-inventario-session'
 const ITEMS_KEY = 'sesi-inventario-items'
 const ACTIVE_UNIT_KEY = 'sesi-inventario-active-unit'
+const USERS_KEY = 'sesi-inventario-users'
+const UNITS_KEY = 'sesi-inventario-units'
 
-const demoUnits = [
-  { id: 'unit-001', code: '001', description: 'SESI 001', isActive: true },
-]
+const seedUnits = [{ id: 'unit-001', code: '001', description: 'SESI 001', isActive: true }]
 
-const demoUsers = [
+const seedUsers = [
+  {
+    id: 'demo-admin',
+    email: 'admin@sesi-al.demo',
+    password: 'sesi123',
+    role: 'Administrador',
+    name: 'Administrador SESI',
+    unitIds: ['unit-001'],
+    lastUnitId: 'unit-001',
+  },
   {
     id: 'demo-supervisor',
     email: 'supervisora@sesi-al.demo',
     password: 'sesi123',
     role: 'Supervisor',
     name: 'Nome (teste)',
-    units: demoUnits,
+    unitIds: ['unit-001'],
+    lastUnitId: 'unit-001',
   },
   {
     id: 'demo-colaborador',
@@ -23,7 +33,8 @@ const demoUsers = [
     password: 'sesi123',
     role: 'Colaborador',
     name: 'Carlos Lima',
-    units: demoUnits,
+    unitIds: ['unit-001'],
+    lastUnitId: 'unit-001',
   },
 ]
 
@@ -65,7 +76,7 @@ const seedItems = [
     unitId: 'unit-001',
     createdBy: 'demo-colaborador',
     name: 'Kit de Ferramentas CNC',
-    category: 'Robótica',
+    category: 'Robotica',
     room: '',
     location: 'Oficina de Mecanica',
     condition: 'Requer manutencao',
@@ -100,25 +111,53 @@ function clearStorage(key) {
   window.localStorage.removeItem(key)
 }
 
-function normalizeDemoUser(session) {
+function readDemoUnits() {
+  const units = readStorage(UNITS_KEY, seedUnits)
+  return units.sort((left, right) => left.code.localeCompare(right.code, 'pt-BR'))
+}
+
+function writeDemoUnits(units) {
+  writeStorage(UNITS_KEY, units)
+}
+
+function readDemoUsers() {
+  return readStorage(USERS_KEY, seedUsers)
+}
+
+function writeDemoUsers(users) {
+  writeStorage(USERS_KEY, users)
+}
+
+function buildDemoSession(user) {
+  if (!user?.email) {
+    return null
+  }
+
+  const units = readDemoUnits().filter((unit) => user.unitIds.includes(unit.id))
+  const persistedUnitId = window.localStorage.getItem(ACTIVE_UNIT_KEY)
+  const activeUnitId =
+    units.find((unit) => unit.id === persistedUnitId)?.id ??
+    units.find((unit) => unit.id === user.lastUnitId)?.id ??
+    units[0]?.id ??
+    ''
+
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    units,
+    activeUnitId,
+  }
+}
+
+function normalizeDemoSession(session) {
   if (!session?.email) {
     return session
   }
 
-  const matched = demoUsers.find((user) => user.email === session.email)
-
-  if (!matched) {
-    return session
-  }
-
-  const persistedUnitId = window.localStorage.getItem(ACTIVE_UNIT_KEY)
-  const activeUnitId =
-    matched.units.find((unit) => unit.id === persistedUnitId)?.id ?? matched.units[0]?.id ?? ''
-
-  return {
-    ...matched,
-    activeUnitId,
-  }
+  const matched = readDemoUsers().find((user) => user.email === session.email)
+  return buildDemoSession(matched)
 }
 
 function toUiItem(item) {
@@ -143,6 +182,12 @@ function toUiItem(item) {
 function ensureActiveUnit(session) {
   if (!session?.activeUnitId) {
     throw new Error('Nenhuma unidade ativa foi selecionada.')
+  }
+}
+
+function ensureAdmin(session) {
+  if (session?.role !== 'Administrador') {
+    throw new Error('Apenas administradores podem acessar este modulo.')
   }
 }
 
@@ -200,6 +245,7 @@ async function getProfile(userId) {
 
   return {
     id: data.id,
+    email: '',
     name: data.full_name,
     role: data.role,
     lastUnitId: data.last_unit_id,
@@ -244,6 +290,7 @@ async function buildRemoteSession(userId) {
 
   return {
     id: profile.id,
+    email: profile.email,
     name: profile.name,
     role: profile.role,
     units,
@@ -256,7 +303,7 @@ export const inventoryApi = {
 
   async restoreSession() {
     if (!hasSupabaseEnv) {
-      return normalizeDemoUser(readStorage(SESSION_KEY, null))
+      return normalizeDemoSession(readStorage(SESSION_KEY, null))
     }
 
     const {
@@ -273,7 +320,7 @@ export const inventoryApi = {
 
   async login({ email, password }) {
     if (!hasSupabaseEnv) {
-      const user = demoUsers.find(
+      const user = readDemoUsers().find(
         (entry) => entry.email === email.trim().toLowerCase() && entry.password === password,
       )
 
@@ -281,7 +328,7 @@ export const inventoryApi = {
         throw new Error('Credenciais invalidas.')
       }
 
-      const normalizedUser = normalizeDemoUser(user)
+      const normalizedUser = buildDemoSession(user)
       writeStorage(SESSION_KEY, normalizedUser)
       writeStorage(ACTIVE_UNIT_KEY, normalizedUser.activeUnitId)
       return normalizedUser
@@ -315,6 +362,12 @@ export const inventoryApi = {
     writeStorage(ACTIVE_UNIT_KEY, unitId)
 
     if (!hasSupabaseEnv) {
+      const users = readDemoUsers()
+      const nextUsers = users.map((user) =>
+        user.id === session.id ? { ...user, lastUnitId: unitId } : user,
+      )
+      writeDemoUsers(nextUsers)
+
       const nextSession = { ...session, activeUnitId: unitId }
       writeStorage(SESSION_KEY, nextSession)
       return nextSession
@@ -496,6 +549,210 @@ export const inventoryApi = {
 
     if (session.role === 'Supervisor' && item.imagePath) {
       await deleteImage(item.imagePath)
+    }
+  },
+
+  async listUnits(session) {
+    ensureAdmin(session)
+
+    if (!hasSupabaseEnv) {
+      return readDemoUnits()
+    }
+
+    const { data, error } = await supabase
+      .from('units')
+      .select('id, code, description, is_active, created_at, updated_at')
+      .order('code', { ascending: true })
+
+    if (error) {
+      throw error
+    }
+
+    return data.map((unit) => ({
+      id: unit.id,
+      code: unit.code,
+      description: unit.description,
+      isActive: unit.is_active,
+      createdAt: unit.created_at,
+      updatedAt: unit.updated_at,
+    }))
+  },
+
+  async saveUnit(payload, session) {
+    ensureAdmin(session)
+
+    if (!payload.code?.trim() || !payload.description?.trim()) {
+      throw new Error('Informe o codigo e a descricao da unidade.')
+    }
+
+    if (!hasSupabaseEnv) {
+      const units = readDemoUnits()
+      const nextPayload = {
+        id: payload.id || crypto.randomUUID(),
+        code: payload.code.trim(),
+        description: payload.description.trim(),
+        isActive: payload.isActive !== false,
+      }
+
+      const nextUnits = payload.id
+        ? units.map((unit) => (unit.id === payload.id ? nextPayload : unit))
+        : [...units, nextPayload]
+
+      writeDemoUnits(nextUnits)
+      return nextPayload
+    }
+
+    const normalizedPayload = {
+      code: payload.code.trim(),
+      description: payload.description.trim(),
+      is_active: payload.isActive !== false,
+    }
+
+    const query = payload.id
+      ? supabase.from('units').update(normalizedPayload).eq('id', payload.id)
+      : supabase.from('units').insert(normalizedPayload)
+
+    const { data, error } = await query
+      .select('id, code, description, is_active, created_at, updated_at')
+      .single()
+
+    if (error) {
+      throw error
+    }
+
+    return {
+      id: data.id,
+      code: data.code,
+      description: data.description,
+      isActive: data.is_active,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+    }
+  },
+
+  async listAccessUsers(session) {
+    ensureAdmin(session)
+
+    if (!hasSupabaseEnv) {
+      const units = readDemoUnits()
+
+      return readDemoUsers()
+        .map((user) => ({
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          lastUnitId: user.lastUnitId ?? user.unitIds[0] ?? '',
+          unitIds: user.unitIds,
+          units: units.filter((unit) => user.unitIds.includes(unit.id)),
+        }))
+        .sort((left, right) => left.name.localeCompare(right.name, 'pt-BR'))
+    }
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, full_name, email, role, last_unit_id, profile_units(unit_id, units(id, code, description, is_active))')
+      .order('full_name', { ascending: true })
+
+    if (error) {
+      throw error
+    }
+
+    return data.map((profile) => {
+      const units = (profile.profile_units ?? [])
+        .map((entry) => entry.units)
+        .filter(Boolean)
+        .map((unit) => ({
+          id: unit.id,
+          code: unit.code,
+          description: unit.description,
+          isActive: unit.is_active,
+        }))
+        .sort((left, right) => left.code.localeCompare(right.code, 'pt-BR'))
+
+      return {
+        id: profile.id,
+        email: profile.email ?? '',
+        name: profile.full_name,
+        role: profile.role,
+        lastUnitId: profile.last_unit_id ?? '',
+        unitIds: units.map((unit) => unit.id),
+        units,
+      }
+    })
+  },
+
+  async saveAccessUser(userId, payload, session) {
+    ensureAdmin(session)
+
+    if (!payload.name?.trim()) {
+      throw new Error('Informe o nome do usuario.')
+    }
+
+    if (!payload.role) {
+      throw new Error('Selecione o perfil de acesso.')
+    }
+
+    if (!payload.unitIds?.length) {
+      throw new Error('Vincule o usuario a pelo menos uma unidade.')
+    }
+
+    const normalizedLastUnitId = payload.unitIds.includes(payload.lastUnitId)
+      ? payload.lastUnitId
+      : payload.unitIds[0]
+
+    if (!hasSupabaseEnv) {
+      const users = readDemoUsers()
+      const nextUsers = users.map((user) =>
+        user.id === userId
+          ? {
+              ...user,
+              name: payload.name.trim(),
+              role: payload.role,
+              unitIds: payload.unitIds,
+              lastUnitId: normalizedLastUnitId,
+            }
+          : user,
+      )
+
+      writeDemoUsers(nextUsers)
+
+      if (session.id === userId) {
+        const refreshed = buildDemoSession(nextUsers.find((user) => user.id === userId))
+        writeStorage(SESSION_KEY, refreshed)
+      }
+
+      return
+    }
+
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .update({
+        full_name: payload.name.trim(),
+        role: payload.role,
+        last_unit_id: normalizedLastUnitId,
+      })
+      .eq('id', userId)
+
+    if (profileError) {
+      throw profileError
+    }
+
+    const { error: deleteError } = await supabase.from('profile_units').delete().eq('profile_id', userId)
+
+    if (deleteError) {
+      throw deleteError
+    }
+
+    const { error: insertError } = await supabase.from('profile_units').insert(
+      payload.unitIds.map((unitId) => ({
+        profile_id: userId,
+        unit_id: unitId,
+      })),
+    )
+
+    if (insertError) {
+      throw insertError
     }
   },
 }

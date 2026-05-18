@@ -97,14 +97,10 @@ function StatCard({ label, value, help }) {
   )
 }
 
-function SectionToggle({ value, onChange }) {
+function SectionToggle({ value, onChange, options }) {
   return (
     <div className="inline-flex rounded-2xl border border-slate-200 bg-slate-100 p-1">
-      {[
-        { id: 'cadastro', label: 'Cadastro' },
-        { id: 'consulta', label: 'Consulta' },
-        { id: 'relatorios', label: 'Relatorios' },
-      ].map((item) => (
+      {options.map((item) => (
         <button
           key={item.id}
           type="button"
@@ -405,6 +401,28 @@ function UnitSelect({ units, value, onChange }) {
   )
 }
 
+function RoleBadge({ value }) {
+  const tones = {
+    Administrador: 'bg-violet-50 text-violet-700',
+    Supervisor: 'bg-sky-50 text-sky-700',
+    Colaborador: 'bg-slate-100 text-slate-700',
+  }
+
+  return (
+    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${tones[value] ?? 'bg-slate-100 text-slate-700'}`}>
+      {value}
+    </span>
+  )
+}
+
+function UnitStatusBadge({ active }) {
+  return (
+    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${active ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+      {active ? 'Ativa' : 'Inativa'}
+    </span>
+  )
+}
+
 function App() {
   const [session, setSession] = useState(null)
   const [items, setItems] = useState([])
@@ -426,7 +444,63 @@ function App() {
   const [showInstallGuide, setShowInstallGuide] = useState(() => shouldShowInstallGuideOnLoad())
   const [isIosDevice] = useState(() => detectIos())
   const [reportFeedback, setReportFeedback] = useState('')
+  const [adminUnits, setAdminUnits] = useState([])
+  const [adminUsers, setAdminUsers] = useState([])
+  const [adminFeedback, setAdminFeedback] = useState('')
+  const [isAdminLoading, setIsAdminLoading] = useState(false)
+  const [unitForm, setUnitForm] = useState({ id: '', code: '', description: '', isActive: true })
+  const [accessForm, setAccessForm] = useState({
+    id: '',
+    name: '',
+    email: '',
+    role: 'Colaborador',
+    unitIds: [],
+    lastUnitId: '',
+  })
   const formCardRef = useRef(null)
+  const isAdmin = session?.role === 'Administrador'
+
+  const resetUnitForm = () => setUnitForm({ id: '', code: '', description: '', isActive: true })
+  const resetAccessForm = () =>
+    setAccessForm({
+      id: '',
+      name: '',
+      email: '',
+      role: 'Colaborador',
+      unitIds: [],
+      lastUnitId: '',
+    })
+
+  const refreshSessionAndItems = async () => {
+    const restoredSession = await inventoryApi.restoreSession()
+    const loadedItems = restoredSession?.activeUnitId
+      ? await inventoryApi.listItems(restoredSession.activeUnitId)
+      : []
+
+    setSession(restoredSession)
+    setItems(loadedItems)
+    return restoredSession
+  }
+
+  const loadAdminData = async (currentSession = session) => {
+    if (currentSession?.role !== 'Administrador') {
+      return
+    }
+
+    setIsAdminLoading(true)
+
+    try {
+      const [units, users] = await Promise.all([
+        inventoryApi.listUnits(currentSession),
+        inventoryApi.listAccessUsers(currentSession),
+      ])
+
+      setAdminUnits(units)
+      setAdminUsers(users)
+    } finally {
+      setIsAdminLoading(false)
+    }
+  }
 
   useEffect(() => {
     async function bootstrap() {
@@ -438,6 +512,15 @@ function App() {
 
         setSession(restoredSession)
         setItems(loadedItems)
+
+        if (restoredSession?.role === 'Administrador') {
+          const [units, users] = await Promise.all([
+            inventoryApi.listUnits(restoredSession),
+            inventoryApi.listAccessUsers(restoredSession),
+          ])
+          setAdminUnits(units)
+          setAdminUsers(users)
+        }
 
         if (!inventoryApi.isRemote) {
           setLoginForm({ email: 'supervisora@sesi-al.demo', password: 'sesi123' })
@@ -545,9 +628,15 @@ function App() {
   const itemBeingConfirmed = items.find((item) => item.id === confirmingDeleteItemId) ?? null
   const roomOptions = FIXED_ROOM_OPTIONS_BY_CATEGORY[form.category] ?? []
   const shouldShowRoomSelect = roomOptions.length > 0
+  const sectionOptions = [
+    { id: 'cadastro', label: 'Cadastro' },
+    { id: 'consulta', label: 'Consulta' },
+    { id: 'relatorios', label: 'Relatorios' },
+    ...(isAdmin ? [{ id: 'administracao', label: 'Administracao' }] : []),
+  ]
 
-  const canEditItem = (item) => session.role === 'Supervisor' || item.createdBy === session.id
-  const canDeleteItem = () => session.role === 'Supervisor'
+  const canEditItem = (item) => ['Administrador', 'Supervisor'].includes(session.role) || item.createdBy === session.id
+  const canDeleteItem = () => ['Administrador', 'Supervisor'].includes(session.role)
 
   const handleLogin = async (event) => {
     event.preventDefault()
@@ -559,6 +648,15 @@ function App() {
       const loadedItems = user.activeUnitId ? await inventoryApi.listItems(user.activeUnitId) : []
       setSession(user)
       setItems(loadedItems)
+
+      if (user.role === 'Administrador') {
+        const [units, users] = await Promise.all([
+          inventoryApi.listUnits(user),
+          inventoryApi.listAccessUsers(user),
+        ])
+        setAdminUnits(units)
+        setAdminUsers(users)
+      }
     } catch (error) {
       setLoginError(error.message || 'Nao foi possivel entrar.')
     }
@@ -586,9 +684,28 @@ function App() {
     }
   }
 
+  const handleSectionChange = async (sectionId) => {
+    setActiveSection(sectionId)
+
+    if (sectionId === 'administracao' && isAdmin) {
+      setAdminFeedback('')
+
+      try {
+        await loadAdminData()
+      } catch (error) {
+        setAdminFeedback(error.message || 'Nao foi possivel carregar os dados administrativos.')
+      }
+    }
+  }
+
   const handleLogout = async () => {
     await inventoryApi.logout()
     setSession(null)
+    setItems([])
+    setAdminUnits([])
+    setAdminUsers([])
+    resetUnitForm()
+    resetAccessForm()
   }
 
   const handleImageUpload = (event) => {
@@ -693,6 +810,83 @@ function App() {
     } finally {
       setItemPendingDelete('')
       setConfirmingDeleteItemId('')
+    }
+  }
+
+  const handleEditUnitRecord = (unit) => {
+    setUnitForm({
+      id: unit.id,
+      code: unit.code,
+      description: unit.description,
+      isActive: unit.isActive,
+    })
+    setAdminFeedback('')
+    setActiveSection('administracao')
+  }
+
+  const handleUnitSubmit = async (event) => {
+    event.preventDefault()
+    setAdminFeedback('')
+    setIsAdminLoading(true)
+
+    try {
+      await inventoryApi.saveUnit(unitForm, session)
+      await loadAdminData()
+      await refreshSessionAndItems()
+      resetUnitForm()
+      setAdminFeedback('Unidade salva com sucesso.')
+    } catch (error) {
+      setAdminFeedback(error.message || 'Nao foi possivel salvar a unidade.')
+    } finally {
+      setIsAdminLoading(false)
+    }
+  }
+
+  const handleEditAccessUser = (user) => {
+    setAccessForm({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      unitIds: user.unitIds,
+      lastUnitId: user.lastUnitId || user.unitIds[0] || '',
+    })
+    setAdminFeedback('')
+    setActiveSection('administracao')
+  }
+
+  const toggleAccessUnit = (unitId) => {
+    setAccessForm((current) => {
+      const nextUnitIds = current.unitIds.includes(unitId)
+        ? current.unitIds.filter((entry) => entry !== unitId)
+        : [...current.unitIds, unitId]
+
+      return {
+        ...current,
+        unitIds: nextUnitIds,
+        lastUnitId: nextUnitIds.includes(current.lastUnitId) ? current.lastUnitId : nextUnitIds[0] ?? '',
+      }
+    })
+  }
+
+  const handleAccessSubmit = async (event) => {
+    event.preventDefault()
+    setAdminFeedback('')
+    setIsAdminLoading(true)
+
+    try {
+      await inventoryApi.saveAccessUser(accessForm.id, accessForm, session)
+      const refreshedSession = await refreshSessionAndItems()
+      await loadAdminData(refreshedSession ?? session)
+      setAdminFeedback('Acessos atualizados com sucesso.')
+
+      if (refreshedSession?.role !== 'Administrador') {
+        setActiveSection('consulta')
+      }
+    } catch (error) {
+      setAdminFeedback(error.message || 'Nao foi possivel atualizar os acessos do usuario.')
+    } finally {
+      setIsAdminLoading(false)
     }
   }
 
@@ -909,7 +1103,8 @@ function App() {
           {!inventoryApi.isRemote ? (
             <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
               <p className="font-semibold text-sesi-ink">Acesso de demonstracao</p>
-              <p className="mt-2">supervisora@sesi-al.demo / sesi123</p>
+              <p className="mt-2">admin@sesi-al.demo / sesi123</p>
+              <p className="mt-1">supervisora@sesi-al.demo / sesi123</p>
             </div>
           ) : null}
         </section>
@@ -926,7 +1121,7 @@ function App() {
         onConfirm={() => handleDeleteItem(itemBeingConfirmed)}
       />
 
-      {activeSection !== 'relatorios' ? <FloatingActionButton onClick={handleCreateNewItem} /> : null}
+      {['cadastro', 'consulta'].includes(activeSection) ? <FloatingActionButton onClick={handleCreateNewItem} /> : null}
 
       <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-xl shadow-slate-900/8">
         <header className="border-b border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fbff)] px-5 py-5 sm:px-8">
@@ -943,7 +1138,7 @@ function App() {
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <SectionToggle value={activeSection} onChange={setActiveSection} />
+              <SectionToggle value={activeSection} onChange={handleSectionChange} options={sectionOptions} />
               {session?.units?.length ? (
                 <UnitSelect units={session.units} value={session.activeUnitId} onChange={handleUnitChange} />
               ) : null}
@@ -971,7 +1166,9 @@ function App() {
           <div className="rounded-[1.75rem] border border-slate-200 bg-[linear-gradient(135deg,#f8fbff,#ffffff)] px-5 py-5 shadow-sm">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-sesi-ink">Painel de inventario</h1>
+              <h1 className="text-2xl font-bold text-sesi-ink">
+                {activeSection === 'administracao' ? 'Painel administrativo' : 'Painel de inventario'}
+              </h1>
               <p className="mt-1 text-sm text-slate-500">
                 Usuario: <span className="font-semibold text-sesi-ink">{displayName}</span> - {session.role}
               </p>
@@ -1021,7 +1218,7 @@ function App() {
             <StatCard label="Manutencao" value={stats.maintenance} help="Itens que exigem atencao" />
           </section>
 
-          {activeSection !== 'relatorios' ? (
+          {['cadastro', 'consulta'].includes(activeSection) ? (
             <section className="grid gap-6 xl:grid-cols-[420px_1fr]">
               <article ref={formCardRef} className={`${activeSection === 'consulta' ? 'hidden xl:block' : 'block'} rounded-[1.75rem] border border-slate-200 bg-slate-50/60 p-5`}>
               <div>
@@ -1262,6 +1459,301 @@ function App() {
                 )}
               </div>
               </article>
+            </section>
+          ) : null}
+
+          {activeSection === 'administracao' && isAdmin ? (
+            <section className="space-y-6">
+              <div className="rounded-[1.75rem] border border-slate-200 bg-[linear-gradient(135deg,#f8fbff,#ffffff)] p-5 shadow-sm">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sesi-blue">Governanca multi-unidade</p>
+                    <h2 className="mt-2 text-2xl font-bold text-sesi-ink">Unidades e acessos</h2>
+                    <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+                      Controle a estrutura das unidades e os vinculos de acesso dos usuarios. O cadastro de novas credenciais continua sendo feito no Supabase Auth, enquanto este modulo organiza perfis e permissoes operacionais.
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
+                    <p><span className="font-semibold text-sesi-ink">Unidades:</span> {adminUnits.length}</p>
+                    <p className="mt-1"><span className="font-semibold text-sesi-ink">Usuarios:</span> {adminUsers.length}</p>
+                  </div>
+                </div>
+              </div>
+
+              {adminFeedback ? (
+                <div
+                  className={`rounded-2xl px-4 py-3 text-sm ${
+                    adminFeedback.toLowerCase().includes('nao foi')
+                      ? 'border border-rose-200 bg-rose-50 text-rose-700'
+                      : 'border border-emerald-200 bg-emerald-50 text-emerald-700'
+                  }`}
+                >
+                  {adminFeedback}
+                </div>
+              ) : null}
+
+              <div className="grid gap-6 xl:grid-cols-[420px_1fr]">
+                <article className="rounded-[1.75rem] border border-slate-200 bg-slate-50/60 p-5">
+                  <div>
+                    <h3 className="text-xl font-bold text-sesi-ink">
+                      {unitForm.id ? 'Edicao de unidade' : 'Cadastro de unidade'}
+                    </h3>
+                    <p className="text-sm text-slate-500">Mantenha o codigo e a descricao institucional de cada unidade.</p>
+                  </div>
+
+                  <form className="mt-5 space-y-4" onSubmit={handleUnitSubmit}>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <label className="block space-y-2">
+                        <span className="text-sm font-medium text-slate-700">Codigo</span>
+                        <input
+                          type="text"
+                          value={unitForm.code}
+                          onChange={(event) => setUnitForm((current) => ({ ...current, code: event.target.value }))}
+                          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-sesi-blue"
+                          placeholder="001"
+                          required
+                        />
+                      </label>
+                      <label className="block space-y-2">
+                        <span className="text-sm font-medium text-slate-700">Status</span>
+                        <select
+                          value={unitForm.isActive ? 'ativa' : 'inativa'}
+                          onChange={(event) =>
+                            setUnitForm((current) => ({ ...current, isActive: event.target.value === 'ativa' }))
+                          }
+                          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-sesi-blue"
+                        >
+                          <option value="ativa">Ativa</option>
+                          <option value="inativa">Inativa</option>
+                        </select>
+                      </label>
+                    </div>
+
+                    <label className="block space-y-2">
+                      <span className="text-sm font-medium text-slate-700">Descricao</span>
+                      <input
+                        type="text"
+                        value={unitForm.description}
+                        onChange={(event) => setUnitForm((current) => ({ ...current, description: event.target.value }))}
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-sesi-blue"
+                        placeholder="SESI 001"
+                        required
+                      />
+                    </label>
+
+                    <button
+                      type="submit"
+                      disabled={isAdminLoading}
+                      className="w-full rounded-2xl bg-sesi-blue px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-sesi-navy disabled:cursor-not-allowed disabled:opacity-70"
+                    >
+                      {isAdminLoading ? 'Salvando...' : unitForm.id ? 'Salvar unidade' : 'Cadastrar unidade'}
+                    </button>
+
+                    {unitForm.id ? (
+                      <button
+                        type="button"
+                        onClick={resetUnitForm}
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-5 py-3.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                      >
+                        Cancelar edicao
+                      </button>
+                    ) : null}
+                  </form>
+                </article>
+
+                <article className="space-y-6 rounded-[1.75rem] border border-slate-200 bg-white p-5">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <h3 className="text-xl font-bold text-sesi-ink">Unidades cadastradas</h3>
+                      <p className="text-sm text-slate-500">Edite a estrutura ativa do inventario por unidade.</p>
+                    </div>
+                    {isAdminLoading ? (
+                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">Atualizando...</span>
+                    ) : null}
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {adminUnits.map((unit) => (
+                      <article key={unit.id} className="rounded-[1.5rem] border border-slate-200 bg-slate-50/70 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-sesi-blue">{unit.code}</p>
+                            <h4 className="mt-1 text-lg font-bold text-sesi-ink">{unit.description}</h4>
+                          </div>
+                          <UnitStatusBadge active={unit.isActive} />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleEditUnitRecord(unit)}
+                          className="mt-4 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+                        >
+                          Editar unidade
+                        </button>
+                      </article>
+                    ))}
+                  </div>
+                </article>
+              </div>
+
+              <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+                <article className="rounded-[1.75rem] border border-slate-200 bg-white p-5">
+                  <div>
+                    <h3 className="text-xl font-bold text-sesi-ink">Usuarios vinculados</h3>
+                    <p className="mt-1 text-sm text-slate-500">Selecione um usuario para revisar perfil, unidade padrao e vinculos de acesso.</p>
+                  </div>
+
+                  <div className="mt-5 grid gap-4">
+                    {adminUsers.map((user) => (
+                      <article key={user.id} className="rounded-[1.5rem] border border-slate-200 bg-slate-50/70 p-4">
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                          <div>
+                            <h4 className="text-lg font-bold text-sesi-ink">{user.name}</h4>
+                            <p className="mt-1 text-sm text-slate-500">{user.email || 'E-mail nao sincronizado'}</p>
+                          </div>
+                          <RoleBadge value={user.role} />
+                        </div>
+
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          {user.units.map((unit) => (
+                            <span key={`${user.id}-${unit.id}`} className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-sesi-blue">
+                              {unit.code} - {unit.description}
+                            </span>
+                          ))}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleEditAccessUser(user)}
+                          className="mt-4 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+                        >
+                          Configurar acesso
+                        </button>
+                      </article>
+                    ))}
+                  </div>
+                </article>
+
+                <article className="rounded-[1.75rem] border border-slate-200 bg-slate-50/60 p-5">
+                  <div>
+                    <h3 className="text-xl font-bold text-sesi-ink">Configuracao de acesso</h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {accessForm.id
+                        ? 'Ajuste perfil e unidades do usuario selecionado.'
+                        : 'Selecione um usuario na lista ao lado para configurar os acessos.'}
+                    </p>
+                  </div>
+
+                  {accessForm.id ? (
+                    <form className="mt-5 space-y-4" onSubmit={handleAccessSubmit}>
+                      <label className="block space-y-2">
+                        <span className="text-sm font-medium text-slate-700">Nome</span>
+                        <input
+                          type="text"
+                          value={accessForm.name}
+                          onChange={(event) => setAccessForm((current) => ({ ...current, name: event.target.value }))}
+                          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-sesi-blue"
+                          required
+                        />
+                      </label>
+
+                      <label className="block space-y-2">
+                        <span className="text-sm font-medium text-slate-700">E-mail</span>
+                        <input
+                          type="text"
+                          value={accessForm.email}
+                          className="w-full rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-slate-500 outline-none"
+                          disabled
+                        />
+                      </label>
+
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <label className="block space-y-2">
+                          <span className="text-sm font-medium text-slate-700">Perfil</span>
+                          <select
+                            value={accessForm.role}
+                            onChange={(event) => setAccessForm((current) => ({ ...current, role: event.target.value }))}
+                            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-sesi-blue"
+                          >
+                            <option>Administrador</option>
+                            <option>Supervisor</option>
+                            <option>Colaborador</option>
+                          </select>
+                        </label>
+
+                        <label className="block space-y-2">
+                          <span className="text-sm font-medium text-slate-700">Unidade padrao</span>
+                          <select
+                            value={accessForm.lastUnitId}
+                            onChange={(event) => setAccessForm((current) => ({ ...current, lastUnitId: event.target.value }))}
+                            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-sesi-blue"
+                            disabled={!accessForm.unitIds.length}
+                          >
+                            {accessForm.unitIds.map((unitId) => {
+                              const unit = adminUnits.find((entry) => entry.id === unitId)
+
+                              if (!unit) {
+                                return null
+                              }
+
+                              return (
+                                <option key={`default-${unit.id}`} value={unit.id}>
+                                  {unit.code} - {unit.description}
+                                </option>
+                              )
+                            })}
+                          </select>
+                        </label>
+                      </div>
+
+                      <div className="rounded-[1.5rem] border border-slate-200 bg-white p-4">
+                        <p className="text-sm font-semibold text-sesi-ink">Unidades vinculadas</p>
+                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                          {adminUnits.map((unit) => (
+                            <label
+                              key={`checkbox-${unit.id}`}
+                              className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={accessForm.unitIds.includes(unit.id)}
+                                onChange={() => toggleAccessUnit(unit.id)}
+                                className="mt-1 h-4 w-4 rounded border-slate-300 text-sesi-blue focus:ring-sesi-blue"
+                              />
+                              <div>
+                                <p className="text-sm font-semibold text-sesi-ink">{unit.code}</p>
+                                <p className="text-sm text-slate-500">{unit.description}</p>
+                              </div>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={isAdminLoading}
+                        className="w-full rounded-2xl bg-sesi-blue px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-sesi-navy disabled:cursor-not-allowed disabled:opacity-70"
+                      >
+                        {isAdminLoading ? 'Salvando...' : 'Salvar acessos'}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={resetAccessForm}
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-5 py-3.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                      >
+                        Limpar selecao
+                      </button>
+                    </form>
+                  ) : (
+                    <div className="mt-5 rounded-[1.5rem] border border-dashed border-slate-300 bg-white p-8 text-center">
+                      <p className="text-base font-semibold text-sesi-ink">Nenhum usuario selecionado</p>
+                      <p className="mt-2 text-sm text-slate-500">
+                        Escolha um usuario na lista para editar perfil, unidade padrao e vinculos de acesso.
+                      </p>
+                    </div>
+                  )}
+                </article>
+              </div>
             </section>
           ) : null}
 

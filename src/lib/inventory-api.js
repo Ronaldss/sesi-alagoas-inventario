@@ -354,6 +354,20 @@ export const inventoryApi = {
     await supabase.auth.signOut()
   },
 
+  async updatePassword(nextPassword) {
+    if (!hasSupabaseEnv || !supabase) {
+      throw new Error('Recuperacao de senha disponivel apenas com Supabase configurado.')
+    }
+
+    const { error } = await supabase.auth.updateUser({
+      password: nextPassword,
+    })
+
+    if (error) {
+      throw error
+    }
+  },
+
   async setActiveUnit(session, unitId) {
     if (!session?.units?.find((unit) => unit.id === unitId)) {
       throw new Error('Acesso negado a unidade selecionada.')

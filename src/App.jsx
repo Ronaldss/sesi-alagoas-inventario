@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { inventoryApi } from './lib/inventory-api'
+import { hasSupabaseEnv, supabase } from './lib/supabase'
 
 const emptyForm = {
   name: '',
@@ -163,6 +164,18 @@ function shouldShowInstallGuideOnLoad() {
   return !dismissed && !isStandaloneMode()
 }
 
+function isRecoveryContext() {
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+  const query = new URLSearchParams(window.location.search)
+
+  return (
+    hash.get('type') === 'recovery' ||
+    query.get('type') === 'recovery' ||
+    hash.has('access_token') ||
+    query.has('code')
+  )
+}
+
 function InstallGuide({ canInstall, isIos, onInstall, onDismiss }) {
   return (
     <div className="rounded-3xl border border-sky-200 bg-[linear-gradient(135deg,#eef7ff,#f8fbff)] p-4 shadow-sm">
@@ -198,6 +211,87 @@ function InstallGuide({ canInstall, isIos, onInstall, onDismiss }) {
         </div>
       </div>
     </div>
+  )
+}
+
+function PasswordRecoveryCard({
+  recoveryForm,
+  onChange,
+  onSubmit,
+  pending,
+  error,
+  success,
+  onBack,
+}) {
+  return (
+    <main className="mx-auto flex min-h-screen w-full max-w-6xl items-center justify-center px-4 py-8 sm:px-6">
+      <section className="w-full max-w-md rounded-[2rem] border border-slate-200/80 bg-white/95 p-6 shadow-2xl shadow-slate-900/8 backdrop-blur sm:p-8">
+        <div className="flex flex-col items-center text-center">
+          <div className="rounded-[2rem] border border-slate-200 bg-white px-5 py-4 shadow-lg shadow-slate-900/5">
+            <img src="/sesi-alagoas-logo.jpg" alt="SESI Alagoas" className="h-20 w-auto sm:h-24" />
+          </div>
+          <div className="mt-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-sesi-blue">Recuperacao de acesso</p>
+            <h1 className="mt-3 text-3xl font-bold text-sesi-ink">Definir nova senha</h1>
+            <p className="mt-3 text-sm leading-6 text-slate-500">
+              Crie uma nova senha para concluir a recuperacao da conta e voltar ao sistema com seguranca.
+            </p>
+          </div>
+        </div>
+
+        {error ? (
+          <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            {error}
+          </div>
+        ) : null}
+
+        {success ? (
+          <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            {success}
+          </div>
+        ) : null}
+
+        <form className="mt-8 space-y-5" onSubmit={onSubmit}>
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-slate-700">Nova senha</span>
+            <input
+              type="password"
+              value={recoveryForm.password}
+              onChange={(event) => onChange('password', event.target.value)}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none transition focus:border-sesi-blue focus:bg-white"
+              required
+            />
+          </label>
+
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-slate-700">Confirmar nova senha</span>
+            <input
+              type="password"
+              value={recoveryForm.confirmPassword}
+              onChange={(event) => onChange('confirmPassword', event.target.value)}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none transition focus:border-sesi-blue focus:bg-white"
+              required
+            />
+          </label>
+
+          <button
+            type="submit"
+            disabled={pending}
+            className="w-full rounded-2xl bg-[linear-gradient(135deg,#0057b8,#0b3b75)] px-5 py-3.5 text-sm font-semibold text-white shadow-lg shadow-sky-900/15 transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            {pending ? 'Salvando...' : 'Salvar nova senha'}
+          </button>
+
+          <button
+            type="button"
+            onClick={onBack}
+            className="w-full rounded-2xl border border-slate-200 bg-white px-5 py-3.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+          >
+            Voltar ao login
+          </button>
+        </form>
+      </section>
+    </main>
   )
 }
 
@@ -444,6 +538,11 @@ function App() {
   const [showInstallGuide, setShowInstallGuide] = useState(() => shouldShowInstallGuideOnLoad())
   const [isIosDevice] = useState(() => detectIos())
   const [reportFeedback, setReportFeedback] = useState('')
+  const [authView, setAuthView] = useState(() => (hasSupabaseEnv && isRecoveryContext() ? 'recovery' : 'login'))
+  const [recoveryForm, setRecoveryForm] = useState({ password: '', confirmPassword: '' })
+  const [recoveryError, setRecoveryError] = useState('')
+  const [recoveryFeedback, setRecoveryFeedback] = useState('')
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false)
   const [adminUnits, setAdminUnits] = useState([])
   const [adminUsers, setAdminUsers] = useState([])
   const [adminFeedback, setAdminFeedback] = useState('')
@@ -505,6 +604,10 @@ function App() {
   useEffect(() => {
     async function bootstrap() {
       try {
+        if (hasSupabaseEnv && isRecoveryContext()) {
+          setAuthView('recovery')
+        }
+
         const restoredSession = await inventoryApi.restoreSession()
         const loadedItems = restoredSession?.activeUnitId
           ? await inventoryApi.listItems(restoredSession.activeUnitId)
@@ -533,6 +636,24 @@ function App() {
     }
 
     bootstrap()
+  }, [])
+
+  useEffect(() => {
+    if (!hasSupabaseEnv || !supabase) {
+      return undefined
+    }
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setAuthView('recovery')
+        setRecoveryError('')
+        setRecoveryFeedback('')
+      }
+    })
+
+    return () => subscription.unsubscribe()
   }, [])
 
   useEffect(() => {
@@ -648,6 +769,7 @@ function App() {
       const loadedItems = user.activeUnitId ? await inventoryApi.listItems(user.activeUnitId) : []
       setSession(user)
       setItems(loadedItems)
+      setAuthView('app')
 
       if (user.role === 'Administrador') {
         const [units, users] = await Promise.all([
@@ -701,11 +823,66 @@ function App() {
   const handleLogout = async () => {
     await inventoryApi.logout()
     setSession(null)
+    setAuthView('login')
     setItems([])
     setAdminUnits([])
     setAdminUsers([])
     resetUnitForm()
     resetAccessForm()
+  }
+
+  const handleRecoveryFieldChange = (field, value) => {
+    setRecoveryForm((current) => ({ ...current, [field]: value }))
+  }
+
+  const handlePasswordRecoverySubmit = async (event) => {
+    event.preventDefault()
+    setRecoveryError('')
+    setRecoveryFeedback('')
+
+    if (recoveryForm.password.length < 6) {
+      setRecoveryError('A nova senha precisa ter pelo menos 6 caracteres.')
+      return
+    }
+
+    if (recoveryForm.password !== recoveryForm.confirmPassword) {
+      setRecoveryError('A confirmacao da senha nao confere.')
+      return
+    }
+
+    setIsUpdatingPassword(true)
+
+    try {
+      await inventoryApi.updatePassword(recoveryForm.password)
+      setRecoveryForm({ password: '', confirmPassword: '' })
+      setRecoveryFeedback('Senha atualizada com sucesso. Voce ja pode continuar no sistema.')
+      setAuthView('app')
+
+      const refreshedSession = await refreshSessionAndItems()
+
+      if (refreshedSession?.role === 'Administrador') {
+        await loadAdminData(refreshedSession)
+      }
+
+      window.history.replaceState({}, document.title, window.location.pathname)
+    } catch (error) {
+      setRecoveryError(error.message || 'Nao foi possivel atualizar a senha.')
+    } finally {
+      setIsUpdatingPassword(false)
+    }
+  }
+
+  const handleBackToLogin = async () => {
+    setRecoveryError('')
+    setRecoveryFeedback('')
+    setRecoveryForm({ password: '', confirmPassword: '' })
+    setAuthView('login')
+    window.history.replaceState({}, document.title, window.location.pathname)
+
+    if (hasSupabaseEnv) {
+      await inventoryApi.logout()
+      setSession(null)
+    }
   }
 
   const handleImageUpload = (event) => {
@@ -1014,6 +1191,20 @@ function App() {
           Carregando sistema...
         </div>
       </main>
+    )
+  }
+
+  if (authView === 'recovery') {
+    return (
+      <PasswordRecoveryCard
+        recoveryForm={recoveryForm}
+        onChange={handleRecoveryFieldChange}
+        onSubmit={handlePasswordRecoverySubmit}
+        pending={isUpdatingPassword}
+        error={recoveryError}
+        success={recoveryFeedback}
+        onBack={handleBackToLogin}
+      />
     )
   }
 

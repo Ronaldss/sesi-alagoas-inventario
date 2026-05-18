@@ -8,7 +8,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "migrate:legacy-images": "node scripts/migrate-legacy-image-paths.mjs"
+    "migrate:legacy-images": "node scripts/migrate-legacy-image-paths.mjs",
+    "admin:reset-password": "node scripts/reset-user-password.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.4",

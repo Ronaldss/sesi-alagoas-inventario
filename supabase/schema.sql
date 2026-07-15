@@ -21,7 +21,10 @@ create table if not exists public.inventory_items (
       'Informática',
       'Maker',
       'Sala de Recurso',
-      'Biblioteca'
+      'Biblioteca',
+      'Sala dos professores',
+      'Sala do Grêmio Estudantil',
+      'Outros'
     )
   ),
   room text,
@@ -49,7 +52,10 @@ check (
     'Informática',
     'Maker',
     'Sala de Recurso',
-    'Biblioteca'
+    'Biblioteca',
+    'Sala dos professores',
+    'Sala do Grêmio Estudantil',
+    'Outros'
   )
 );
 

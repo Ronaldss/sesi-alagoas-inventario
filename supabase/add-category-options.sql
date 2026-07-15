@@ -1,21 +1,3 @@
-select distinct category
-from public.inventory_items
-where category not in (
-  'Ciências Humanas',
-  'Linguagem',
-  'Ciências da Natureza',
-  'Matemática',
-  'Robótica',
-  'Informática',
-  'Maker',
-  'Sala de Recurso',
-  'Biblioteca',
-  'Sala dos professores',
-  'Sala do Grêmio Estudantil',
-  'Outros'
-)
-order by category;
-
 alter table public.inventory_items
 drop constraint if exists inventory_items_category_check;
 

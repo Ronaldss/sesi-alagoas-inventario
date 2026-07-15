@@ -46,6 +46,9 @@ const FIXED_CATEGORY_OPTIONS = [
   'Maker',
   'Sala de Recurso',
   'Biblioteca',
+  'Sala dos professores',
+  'Sala do Grêmio Estudantil',
+  'Outros',
 ]
 
 const FIXED_ROOM_OPTIONS_BY_CATEGORY = {

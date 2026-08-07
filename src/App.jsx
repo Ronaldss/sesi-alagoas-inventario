@@ -614,7 +614,13 @@ function App() {
   const [loginForm, setLoginForm] = useState({ email: '', password: '' })
   const [form, setForm] = useState(INITIAL_FORM)
   const [filters, setFilters] = useState({ search: '', category: '', condition: 'Todos' })
-  const [reportFilters, setReportFilters] = useState({ search: '', category: '', condition: 'Todos' })
+  const [reportFilters, setReportFilters] = useState({
+    search: '',
+    category: '',
+    condition: 'Todos',
+    acquisitionDateFrom: '',
+    acquisitionDateTo: '',
+  })
   const [activeSection, setActiveSection] = useState('cadastro')
   const [installPrompt, setInstallPrompt] = useState(null)
   const [feedback, setFeedback] = useState('')
@@ -789,8 +795,18 @@ function App() {
         const matchesCategory = !reportFilters.category || item.category === reportFilters.category
         const matchesCondition =
           reportFilters.condition === 'Todos' || item.condition === reportFilters.condition
+        const matchesAcquisitionDateFrom =
+          !reportFilters.acquisitionDateFrom || item.acquisitionDate >= reportFilters.acquisitionDateFrom
+        const matchesAcquisitionDateTo =
+          !reportFilters.acquisitionDateTo || item.acquisitionDate <= reportFilters.acquisitionDateTo
 
-        return matchesSearch && matchesCategory && matchesCondition
+        return (
+          matchesSearch &&
+          matchesCategory &&
+          matchesCondition &&
+          matchesAcquisitionDateFrom &&
+          matchesAcquisitionDateTo
+        )
       }),
     [items, reportFilters],
   )
@@ -866,6 +882,13 @@ function App() {
       .map(([label, value]) => ({ label, value }))
   }, [filteredReportItems])
   const reportLeadingLocation = reportLocationRows[0] ?? null
+  const reportHasActiveFilters = Boolean(
+    reportFilters.search ||
+    reportFilters.category ||
+    reportFilters.condition !== 'Todos' ||
+    reportFilters.acquisitionDateFrom ||
+    reportFilters.acquisitionDateTo,
+  )
   const reportPriorityRows = [
     {
       label: 'Itens em manutencao',
@@ -1276,6 +1299,17 @@ function App() {
   const handleReportFilterChange = (field, value) => {
     setShowFullReportDetails(false)
     setReportFilters((current) => ({ ...current, [field]: value }))
+  }
+
+  const resetReportFilters = () => {
+    setShowFullReportDetails(false)
+    setReportFilters({
+      search: '',
+      category: '',
+      condition: 'Todos',
+      acquisitionDateFrom: '',
+      acquisitionDateTo: '',
+    })
   }
 
   const handleConsultPageChange = (nextPage) => {
@@ -2220,10 +2254,22 @@ function App() {
               <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
                 <div className="space-y-4">
                   <div className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
-                    <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-sesi-blue">Filtros do relatorio</h3>
-                    <p className="mt-2 text-sm text-slate-500">
-                      Use os filtros para montar um recorte especifico antes de exportar ou imprimir.
-                    </p>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-sesi-blue">Filtros do relatorio</h3>
+                        <p className="mt-2 text-sm text-slate-500">
+                          Use os filtros para montar um recorte especifico antes de exportar ou imprimir.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={resetReportFilters}
+                        disabled={!reportHasActiveFilters}
+                        className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Limpar filtros
+                      </button>
+                    </div>
                     <div className="mt-4 grid gap-3">
                       <input
                         type="search"
@@ -2251,6 +2297,26 @@ function App() {
                           <option>Requer manutencao</option>
                         </select>
                       </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <label className="block space-y-2">
+                          <span className="text-sm font-medium text-slate-700">Aquisicao a partir de</span>
+                          <input
+                            type="date"
+                            value={reportFilters.acquisitionDateFrom}
+                            onChange={(event) => handleReportFilterChange('acquisitionDateFrom', event.target.value)}
+                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-sesi-blue focus:bg-white"
+                          />
+                        </label>
+                        <label className="block space-y-2">
+                          <span className="text-sm font-medium text-slate-700">Aquisicao ate</span>
+                          <input
+                            type="date"
+                            value={reportFilters.acquisitionDateTo}
+                            onChange={(event) => handleReportFilterChange('acquisitionDateTo', event.target.value)}
+                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-sesi-blue focus:bg-white"
+                          />
+                        </label>
+                      </div>
                     </div>
                   </div>
 
@@ -2261,6 +2327,7 @@ function App() {
                   />
                   <ReportSummaryTable title="Resumo por categoria" rows={reportCategoryRows} />
                   <ReportSummaryTable title="Resumo por estado" rows={reportConditionRows} />
+                  <ReportSummaryTable title="Top locais por concentracao" rows={reportLocationRows} />
                 </div>
 
                 <div className="space-y-4">

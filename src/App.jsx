@@ -503,6 +503,7 @@ function RoleBadge({ value }) {
     Administrador: 'bg-violet-50 text-violet-700',
     Supervisor: 'bg-sky-50 text-sky-700',
     Colaborador: 'bg-slate-100 text-slate-700',
+    Visualizacao: 'bg-amber-50 text-amber-700',
   }
 
   return (
@@ -561,6 +562,7 @@ function App() {
   })
   const formCardRef = useRef(null)
   const isAdmin = session?.role === 'Administrador'
+  const canCreateItems = ['Administrador', 'Supervisor', 'Colaborador'].includes(session?.role ?? '')
 
   const resetUnitForm = () => setUnitForm({ id: '', code: '', description: '', isActive: true })
   const resetAccessForm = () =>
@@ -752,14 +754,17 @@ function App() {
   const itemBeingConfirmed = items.find((item) => item.id === confirmingDeleteItemId) ?? null
   const roomOptions = FIXED_ROOM_OPTIONS_BY_CATEGORY[form.category] ?? []
   const shouldShowRoomSelect = roomOptions.length > 0
+  const visibleActiveSection = !canCreateItems && activeSection === 'cadastro' ? 'consulta' : activeSection
   const sectionOptions = [
-    { id: 'cadastro', label: 'Cadastro' },
+    ...(canCreateItems ? [{ id: 'cadastro', label: 'Cadastro' }] : []),
     { id: 'consulta', label: 'Consulta' },
     { id: 'relatorios', label: 'Relatorios' },
     ...(isAdmin ? [{ id: 'administracao', label: 'Administracao' }] : []),
   ]
 
-  const canEditItem = (item) => ['Administrador', 'Supervisor'].includes(session.role) || item.createdBy === session.id
+  const canEditItem = (item) =>
+    ['Administrador', 'Supervisor'].includes(session.role) ||
+    (session.role === 'Colaborador' && item.createdBy === session.id)
   const canDeleteItem = () => ['Administrador', 'Supervisor'].includes(session.role)
 
   const handleLogin = async (event) => {
@@ -921,6 +926,11 @@ function App() {
   }
 
   const handleEditItem = (item) => {
+    if (!canEditItem(item)) {
+      setFeedback('Seu perfil possui acesso somente para visualizacao.')
+      return
+    }
+
     setEditingItemId(item.id)
     setForm(buildFormFromItem(item))
     setSelectedFile(null)
@@ -937,6 +947,11 @@ function App() {
   }
 
   const handleCreateNewItem = () => {
+    if (!canCreateItems) {
+      setFeedback('Seu perfil possui acesso somente para visualizacao.')
+      return
+    }
+
     handleCancelEdit()
     setActiveSection('cadastro')
     window.requestAnimationFrame(() => {
@@ -946,6 +961,11 @@ function App() {
 
   const handleSubmit = async (event) => {
     event.preventDefault()
+    if (!canCreateItems) {
+      setFeedback('Seu perfil possui acesso somente para visualizacao.')
+      return
+    }
+
     setIsSubmitting(true)
     setFeedback('')
 
@@ -1315,7 +1335,7 @@ function App() {
         onConfirm={() => handleDeleteItem(itemBeingConfirmed)}
       />
 
-      {['cadastro', 'consulta'].includes(activeSection) ? <FloatingActionButton onClick={handleCreateNewItem} /> : null}
+      {canCreateItems && ['cadastro', 'consulta'].includes(visibleActiveSection) ? <FloatingActionButton onClick={handleCreateNewItem} /> : null}
 
       <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-xl shadow-slate-900/8">
         <header className="border-b border-slate-200 bg-[linear-gradient(180deg,#ffffff,#f8fbff)] px-5 py-5 sm:px-8">
@@ -1332,7 +1352,7 @@ function App() {
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <SectionToggle value={activeSection} onChange={handleSectionChange} options={sectionOptions} />
+              <SectionToggle value={visibleActiveSection} onChange={handleSectionChange} options={sectionOptions} />
               {session?.units?.length ? (
                 <UnitSelect units={session.units} value={session.activeUnitId} onChange={handleUnitChange} />
               ) : null}
@@ -1361,7 +1381,7 @@ function App() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h1 className="text-2xl font-bold text-sesi-ink">
-                {activeSection === 'administracao' ? 'Painel administrativo' : 'Painel de inventario'}
+                {visibleActiveSection === 'administracao' ? 'Painel administrativo' : 'Painel de inventario'}
               </h1>
               <p className="mt-1 text-sm text-slate-500">
                 Usuario: <span className="font-semibold text-sesi-ink">{displayName}</span> - {session.role}
@@ -1412,9 +1432,11 @@ function App() {
             <StatCard label="Manutencao" value={stats.maintenance} help="Itens que exigem atencao" />
           </section>
 
-          {['cadastro', 'consulta'].includes(activeSection) ? (
+          {['cadastro', 'consulta'].includes(visibleActiveSection) ? (
             <section className="grid gap-6 xl:grid-cols-[420px_1fr]">
-              <article ref={formCardRef} className={`${activeSection === 'consulta' ? 'hidden xl:block' : 'block'} rounded-[1.75rem] border border-slate-200 bg-slate-50/60 p-5`}>
+              <article ref={formCardRef} className={`${visibleActiveSection === 'consulta' ? 'hidden xl:block' : 'block'} rounded-[1.75rem] border border-slate-200 bg-slate-50/60 p-5`}>
+              {canCreateItems ? (
+                <>
               <div>
                 <h2 className="text-xl font-bold text-sesi-ink">{isEditing ? 'Edicao de item' : 'Cadastro de item'}</h2>
                 <p className="text-sm text-slate-500">
@@ -1537,9 +1559,15 @@ function App() {
                   </button>
                 ) : null}
               </form>
+                </>
+              ) : (
+                <div className="rounded-[1.5rem] border border-amber-200 bg-amber-50 px-4 py-5 text-sm text-amber-800">
+                  Este acesso esta configurado somente para visualizacao. Consultas, filtros e relatorios continuam disponiveis, mas o cadastro e a edicao de itens ficam bloqueados.
+                </div>
+              )}
               </article>
 
-              <article className={`${activeSection === 'cadastro' ? 'hidden xl:block' : 'block'} rounded-[1.75rem] border border-slate-200 bg-white p-5`}>
+              <article className={`${visibleActiveSection === 'cadastro' ? 'hidden xl:block' : 'block'} rounded-[1.75rem] border border-slate-200 bg-white p-5`}>
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <h2 className="text-xl font-bold text-sesi-ink">Consulta de itens</h2>
@@ -1656,7 +1684,7 @@ function App() {
             </section>
           ) : null}
 
-          {activeSection === 'administracao' && isAdmin ? (
+          {visibleActiveSection === 'administracao' && isAdmin ? (
             <section className="space-y-6">
               <div className="rounded-[1.75rem] border border-slate-200 bg-[linear-gradient(135deg,#f8fbff,#ffffff)] p-5 shadow-sm">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -1871,6 +1899,7 @@ function App() {
                             <option>Administrador</option>
                             <option>Supervisor</option>
                             <option>Colaborador</option>
+                            <option>Visualizacao</option>
                           </select>
                         </label>
 
@@ -1951,7 +1980,7 @@ function App() {
             </section>
           ) : null}
 
-          {activeSection === 'relatorios' ? (
+          {visibleActiveSection === 'relatorios' ? (
             <section className="space-y-6">
               <article className="space-y-6">
               <ReportHeaderCard

@@ -30,7 +30,7 @@ drop constraint if exists profiles_role_check;
 
 alter table public.profiles
 add constraint profiles_role_check
-check (role in ('Administrador', 'Supervisor', 'Colaborador'));
+check (role in ('Administrador', 'Supervisor', 'Colaborador', 'Visualizacao'));
 
 alter table public.profiles
 add column if not exists last_unit_id uuid references public.units(id) on delete set null;
@@ -132,6 +132,7 @@ to authenticated
 with check (
   auth.uid() = created_by
   and public.user_has_unit_access(unit_id)
+  and public.user_role() in ('Administrador', 'Supervisor', 'Colaborador')
 );
 
 create policy "supervisors or owners update inventory in linked units"
@@ -141,15 +142,15 @@ to authenticated
 using (
   public.user_has_unit_access(unit_id)
   and (
-    auth.uid() = created_by
-    or public.user_role() in ('Administrador', 'Supervisor')
+    public.user_role() in ('Administrador', 'Supervisor')
+    or (public.user_role() = 'Colaborador' and auth.uid() = created_by)
   )
 )
 with check (
   public.user_has_unit_access(unit_id)
   and (
-    auth.uid() = created_by
-    or public.user_role() in ('Administrador', 'Supervisor')
+    public.user_role() in ('Administrador', 'Supervisor')
+    or (public.user_role() = 'Colaborador' and auth.uid() = created_by)
   )
 );
 
@@ -232,6 +233,7 @@ with check (
   bucket_id = 'inventory-images'
   and public.user_has_unit_access((storage.foldername(name))[1]::uuid)
   and auth.uid()::text = (storage.foldername(name))[2]
+  and public.user_role() in ('Administrador', 'Supervisor', 'Colaborador')
 );
 
 create policy "users can read inventory images in linked units"
@@ -260,8 +262,8 @@ using (
     where i.image_path = storage.objects.name
       and public.user_has_unit_access(i.unit_id)
       and (
-        i.created_by = auth.uid()
-        or public.user_role() in ('Administrador', 'Supervisor')
+        public.user_role() in ('Administrador', 'Supervisor')
+        or (public.user_role() = 'Colaborador' and i.created_by = auth.uid())
       )
   )
 )
@@ -273,8 +275,8 @@ with check (
     where i.image_path = storage.objects.name
       and public.user_has_unit_access(i.unit_id)
       and (
-        i.created_by = auth.uid()
-        or public.user_role() in ('Administrador', 'Supervisor')
+        public.user_role() in ('Administrador', 'Supervisor')
+        or (public.user_role() = 'Colaborador' and i.created_by = auth.uid())
       )
   )
 );

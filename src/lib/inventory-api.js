@@ -5,6 +5,8 @@ const ITEMS_KEY = 'sesi-inventario-items'
 const ACTIVE_UNIT_KEY = 'sesi-inventario-active-unit'
 const USERS_KEY = 'sesi-inventario-users'
 const UNITS_KEY = 'sesi-inventario-units'
+const ACCESS_ROLES = ['Administrador', 'Supervisor', 'Colaborador', 'Visualizacao']
+const INVENTORY_WRITE_ROLES = new Set(['Administrador', 'Supervisor', 'Colaborador'])
 
 const seedUnits = [{ id: 'unit-001', code: '001', description: 'SESI 001', isActive: true }]
 
@@ -188,6 +190,34 @@ function ensureActiveUnit(session) {
 function ensureAdmin(session) {
   if (session?.role !== 'Administrador') {
     throw new Error('Apenas administradores podem acessar este modulo.')
+  }
+}
+
+function ensureInventoryWrite(session) {
+  if (!INVENTORY_WRITE_ROLES.has(session?.role)) {
+    throw new Error('Seu perfil possui acesso somente para visualizacao.')
+  }
+}
+
+function ensureItemUpdatePermission(session, item) {
+  if (!session || !item) {
+    throw new Error('Nao foi possivel validar a permissao de edicao do item.')
+  }
+
+  if (['Administrador', 'Supervisor'].includes(session.role)) {
+    return
+  }
+
+  if (session.role === 'Colaborador' && item.createdBy === session.id) {
+    return
+  }
+
+  throw new Error('Seu perfil nao possui permissao para editar este item.')
+}
+
+function ensureDeletePermission(session) {
+  if (!['Administrador', 'Supervisor'].includes(session?.role)) {
+    throw new Error('Seu perfil nao possui permissao para excluir itens.')
   }
 }
 
@@ -432,6 +462,7 @@ export const inventoryApi = {
 
   async createItem(form, file, session) {
     ensureActiveUnit(session)
+    ensureInventoryWrite(session)
 
     if (!hasSupabaseEnv) {
       const payload = {
@@ -487,6 +518,7 @@ export const inventoryApi = {
 
   async updateItem(itemId, form, file, session, currentItem) {
     ensureActiveUnit(session)
+    ensureItemUpdatePermission(session, currentItem)
 
     if (!hasSupabaseEnv) {
       const current = readStorage(ITEMS_KEY, seedItems)
@@ -543,6 +575,7 @@ export const inventoryApi = {
 
   async deleteItem(item, session) {
     ensureActiveUnit(session)
+    ensureDeletePermission(session)
 
     if (!hasSupabaseEnv) {
       const current = readStorage(ITEMS_KEY, seedItems)
@@ -705,6 +738,10 @@ export const inventoryApi = {
 
     if (!payload.role) {
       throw new Error('Selecione o perfil de acesso.')
+    }
+
+    if (!ACCESS_ROLES.includes(payload.role)) {
+      throw new Error('Selecione um perfil de acesso valido.')
     }
 
     if (!payload.unitIds?.length) {

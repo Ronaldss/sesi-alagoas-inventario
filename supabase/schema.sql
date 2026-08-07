@@ -3,7 +3,7 @@ create extension if not exists "pgcrypto";
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   full_name text not null,
-  role text not null check (role in ('Supervisor', 'Colaborador')),
+  role text not null check (role in ('Administrador', 'Supervisor', 'Colaborador', 'Visualizacao')),
   created_at timestamptz not null default timezone('utc', now())
 );
 
@@ -80,7 +80,11 @@ begin
   values (
     new.id,
     coalesce(new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1)),
-    coalesce(new.raw_user_meta_data->>'role', 'Colaborador')
+    case
+      when coalesce(new.raw_user_meta_data->>'role', 'Colaborador') in ('Administrador', 'Supervisor', 'Colaborador', 'Visualizacao')
+        then coalesce(new.raw_user_meta_data->>'role', 'Colaborador')
+      else 'Colaborador'
+    end
   )
   on conflict (id) do update
   set

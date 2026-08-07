@@ -22,7 +22,11 @@ begin
     new.id,
     coalesce(new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1)),
     new.email,
-    coalesce(new.raw_user_meta_data->>'role', 'Colaborador')
+    case
+      when coalesce(new.raw_user_meta_data->>'role', 'Colaborador') in ('Administrador', 'Supervisor', 'Colaborador', 'Visualizacao')
+        then coalesce(new.raw_user_meta_data->>'role', 'Colaborador')
+      else 'Colaborador'
+    end
   )
   on conflict (id) do update
   set

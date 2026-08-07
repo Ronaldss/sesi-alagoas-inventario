@@ -601,6 +601,7 @@ function App() {
     lastUnitId: '',
   })
   const formCardRef = useRef(null)
+  const consultCardRef = useRef(null)
   const isAdmin = session?.role === 'Administrador'
   const canCreateItems = ['Administrador', 'Supervisor', 'Colaborador'].includes(session?.role ?? '')
 
@@ -1167,7 +1168,7 @@ function App() {
 
     setConsultPage(nextPage)
     window.requestAnimationFrame(() => {
-      formCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      consultCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     })
   }
 
@@ -1633,7 +1634,7 @@ function App() {
               )}
               </article>
 
-              <article className={`${visibleActiveSection === 'cadastro' ? 'hidden xl:block' : 'block'} rounded-[1.75rem] border border-slate-200 bg-white p-5`}>
+              <article ref={consultCardRef} className={`${visibleActiveSection === 'cadastro' ? 'hidden xl:block' : 'block'} rounded-[1.75rem] border border-slate-200 bg-white p-5`}>
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <h2 className="text-xl font-bold text-sesi-ink">Consulta de itens</h2>

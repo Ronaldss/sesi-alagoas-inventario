@@ -428,14 +428,60 @@ function FloatingActionButton({ onClick }) {
 }
 
 function ReportSummaryTable({ title, rows }) {
+  const maxValue = Math.max(...rows.map((row) => row.value), 0)
+
   return (
     <div className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm">
       <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-sesi-blue">{title}</h3>
       <div className="mt-4 space-y-3">
         {rows.map((row) => (
-          <div key={row.label} className="flex items-center justify-between gap-4 rounded-2xl bg-slate-50 px-4 py-3">
-            <span className="text-sm text-slate-600">{row.label}</span>
-            <span className="text-sm font-semibold text-sesi-ink">{row.value}</span>
+          <div key={row.label} className="rounded-2xl bg-slate-50 px-4 py-3">
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-sm text-slate-600">{row.label}</span>
+              <span className="text-sm font-semibold text-sesi-ink">{row.value}</span>
+            </div>
+            <div className="mt-2 h-2 rounded-full bg-white">
+              <div
+                className="h-2 rounded-full bg-[linear-gradient(135deg,#0057b8,#0b3b75)]"
+                style={{ width: `${maxValue ? Math.max((row.value / maxValue) * 100, 8) : 0}%` }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ReportMetricCard({ label, value, help, tone = 'default' }) {
+  const tones = {
+    default: 'border-slate-200 bg-white text-sesi-ink',
+    attention: 'border-amber-200 bg-amber-50 text-amber-900',
+    danger: 'border-rose-200 bg-rose-50 text-rose-900',
+  }
+
+  return (
+    <div className={`rounded-[1.5rem] border p-4 shadow-sm ${tones[tone] ?? tones.default}`}>
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</p>
+      <p className="mt-2 text-2xl font-bold">{value}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-500">{help}</p>
+    </div>
+  )
+}
+
+function ReportPriorityCard({ title, description, rows }) {
+  return (
+    <div className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm">
+      <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-sesi-blue">{title}</h3>
+      <p className="mt-2 text-sm leading-6 text-slate-500">{description}</p>
+      <div className="mt-4 space-y-3">
+        {rows.map((row) => (
+          <div key={row.label} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <div className="flex items-center justify-between gap-4">
+              <p className="text-sm font-semibold text-sesi-ink">{row.label}</p>
+              <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600">{row.value}</span>
+            </div>
+            <p className="mt-2 text-sm leading-6 text-slate-500">{row.help}</p>
           </div>
         ))}
       </div>
@@ -514,6 +560,8 @@ function ReportHeaderCard({ totalItems, totalLocations, totalMaintenance }) {
   )
 }
 
+const REPORT_DETAIL_PREVIEW_COUNT = 12
+
 function UnitSelect({ units, value, onChange }) {
   if (!units.length) {
     return null
@@ -581,6 +629,7 @@ function App() {
   const [showInstallGuide, setShowInstallGuide] = useState(() => shouldShowInstallGuideOnLoad())
   const [isIosDevice] = useState(() => detectIos())
   const [reportFeedback, setReportFeedback] = useState('')
+  const [showFullReportDetails, setShowFullReportDetails] = useState(false)
   const [consultPage, setConsultPage] = useState(1)
   const [authView, setAuthView] = useState(() => (hasSupabaseEnv && isRecoveryContext() ? 'recovery' : 'login'))
   const [recoveryForm, setRecoveryForm] = useState({ password: '', confirmPassword: '' })
@@ -771,6 +820,69 @@ function App() {
       })),
     [filteredReportItems],
   )
+  const reportTopConditionRow = [...reportConditionRows].sort(
+    (left, right) => right.value - left.value || left.label.localeCompare(right.label, 'pt-BR'),
+  )[0] ?? null
+
+  const reportItemsSortedByPriority = useMemo(() => {
+    const conditionWeight = {
+      'Requer manutencao': 0,
+      Regular: 1,
+      Bom: 2,
+      Excelente: 3,
+    }
+
+    return [...filteredReportItems].sort((left, right) => {
+      const conditionDifference = (conditionWeight[left.condition] ?? 99) - (conditionWeight[right.condition] ?? 99)
+
+      if (conditionDifference !== 0) {
+        return conditionDifference
+      }
+
+      return new Date(right.updatedAt ?? right.createdAt).getTime() - new Date(left.updatedAt ?? left.createdAt).getTime()
+    })
+  }, [filteredReportItems])
+
+  const reportPreviewItems = showFullReportDetails
+    ? reportItemsSortedByPriority
+    : reportItemsSortedByPriority.slice(0, REPORT_DETAIL_PREVIEW_COUNT)
+
+  const reportMaintenanceCount = filteredReportItems.filter((item) => item.condition === 'Requer manutencao').length
+  const reportMissingImageCount = filteredReportItems.filter((item) => !item.imagePath && !item.image).length
+  const reportMissingNotesCount = filteredReportItems.filter((item) => !item.notes?.trim()).length
+  const reportMaintenanceRate = filteredReportItems.length
+    ? Math.round((reportMaintenanceCount / filteredReportItems.length) * 100)
+    : 0
+  const reportLeadingCategory = reportCategoryRows[0] ?? null
+  const reportLocationRows = useMemo(() => {
+    const counts = filteredReportItems.reduce((accumulator, item) => {
+      accumulator[item.location] = (accumulator[item.location] ?? 0) + 1
+      return accumulator
+    }, {})
+
+    return Object.entries(counts)
+      .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0], 'pt-BR'))
+      .slice(0, 5)
+      .map(([label, value]) => ({ label, value }))
+  }, [filteredReportItems])
+  const reportLeadingLocation = reportLocationRows[0] ?? null
+  const reportPriorityRows = [
+    {
+      label: 'Itens em manutencao',
+      value: reportMaintenanceCount,
+      help: 'Prioridade imediata para acompanhamento tecnico e previsao de substituicao.',
+    },
+    {
+      label: 'Itens sem foto',
+      value: reportMissingImageCount,
+      help: 'Equipamentos sem evidencia visual reduzem confiabilidade para auditoria e prestacao de contas.',
+    },
+    {
+      label: 'Itens sem observacao',
+      value: reportMissingNotesCount,
+      help: 'Registros sem contexto dificultam justificativas em manutencao, troca ou remanejamento.',
+    },
+  ]
 
   const reportDetailRows = useMemo(
     () =>
@@ -1159,6 +1271,11 @@ function App() {
   const handleConsultFilterChange = (field, value) => {
     setConsultPage(1)
     setFilters((current) => ({ ...current, [field]: value }))
+  }
+
+  const handleReportFilterChange = (field, value) => {
+    setShowFullReportDetails(false)
+    setReportFilters((current) => ({ ...current, [field]: value }))
   }
 
   const handleConsultPageChange = (nextPage) => {
@@ -2065,13 +2182,13 @@ function App() {
               <div className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
-                    <h2 className="text-xl font-bold text-sesi-ink">Exportacao e analise</h2>
+                    <h2 className="text-xl font-bold text-sesi-ink">Resumo executivo e exportacao</h2>
                     <p className="mt-1 text-sm leading-6 text-slate-500">
-                      Gere arquivos compativeis com Excel, LibreOffice e PDF para envio, impressao ou arquivo interno.
+                      Painel consolidado para leitura gerencial, identificacao de riscos e emissao de arquivos institucionais.
                     </p>
                   </div>
                   <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                    Os dados abaixo respeitam exclusivamente os filtros do relatorio.
+                    Os dados abaixo respeitam exclusivamente os filtros e a unidade ativa do relatorio.
                   </div>
                 </div>
 
@@ -2082,10 +2199,22 @@ function App() {
                 ) : null}
               </div>
 
-              <div className="grid gap-4 lg:grid-cols-3">
+              <div className="grid gap-4 xl:grid-cols-5">
                 <StatCard label="Itens no relatorio" value={filteredReportItems.length} help="Total com os filtros atuais" />
                 <StatCard label="Locais incluidos" value={new Set(filteredReportItems.map((item) => item.location)).size} help="Ambientes presentes na exportacao" />
-                <StatCard label="Em manutencao" value={filteredReportItems.filter((item) => item.condition === 'Requer manutencao').length} help="Itens que exigem acompanhamento" />
+                <StatCard label="Em manutencao" value={reportMaintenanceCount} help="Itens que exigem acompanhamento" />
+                <ReportMetricCard
+                  label="Indice critico"
+                  value={`${reportMaintenanceRate}%`}
+                  help="Percentual do acervo filtrado em manutencao."
+                  tone={reportMaintenanceRate >= 15 ? 'danger' : reportMaintenanceRate >= 8 ? 'attention' : 'default'}
+                />
+                <ReportMetricCard
+                  label="Evidencia pendente"
+                  value={reportMissingImageCount}
+                  help="Itens sem foto no recorte atual."
+                  tone={reportMissingImageCount > 0 ? 'attention' : 'default'}
+                />
               </div>
 
               <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
@@ -2099,20 +2228,20 @@ function App() {
                       <input
                         type="search"
                         value={reportFilters.search}
-                        onChange={(event) => setReportFilters((current) => ({ ...current, search: event.target.value }))}
+                        onChange={(event) => handleReportFilterChange('search', event.target.value)}
                         className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-sesi-blue focus:bg-white"
                         placeholder="Buscar por item ou local"
                       />
                       <div className="grid gap-3 sm:grid-cols-2">
                         <CategorySelect
                           value={reportFilters.category}
-                          onChange={(category) => setReportFilters((current) => ({ ...current, category }))}
+                          onChange={(category) => handleReportFilterChange('category', category)}
                           placeholder="Todas as categorias"
                           allowAll
                         />
                         <select
                           value={reportFilters.condition}
-                          onChange={(event) => setReportFilters((current) => ({ ...current, condition: event.target.value }))}
+                          onChange={(event) => handleReportFilterChange('condition', event.target.value)}
                           className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-sesi-blue focus:bg-white"
                         >
                           <option>Todos</option>
@@ -2125,11 +2254,34 @@ function App() {
                     </div>
                   </div>
 
+                  <ReportPriorityCard
+                    title="Pontos de atencao"
+                    description="Leitura rapida das principais pendencias do recorte exibido antes de abrir o detalhamento completo."
+                    rows={reportPriorityRows}
+                  />
                   <ReportSummaryTable title="Resumo por categoria" rows={reportCategoryRows} />
                   <ReportSummaryTable title="Resumo por estado" rows={reportConditionRows} />
                 </div>
 
                 <div className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <ReportMetricCard
+                      label="Categoria lider"
+                      value={reportLeadingCategory ? `${reportLeadingCategory.label}` : 'Sem dados'}
+                      help={reportLeadingCategory ? `${reportLeadingCategory.value} itens no recorte atual.` : 'Nenhum item encontrado com os filtros atuais.'}
+                    />
+                    <ReportMetricCard
+                      label="Local com maior volume"
+                      value={reportLeadingLocation ? reportLeadingLocation.label : 'Sem dados'}
+                      help={reportLeadingLocation ? `${reportLeadingLocation.value} itens concentrados neste ambiente.` : 'Nenhum ambiente disponivel no recorte atual.'}
+                    />
+                    <ReportMetricCard
+                      label="Estado predominante"
+                      value={reportTopConditionRow ? reportTopConditionRow.label : 'Sem dados'}
+                      help={reportTopConditionRow ? `${reportTopConditionRow.value} itens neste estado.` : 'Nenhum estado disponivel no recorte atual.'}
+                    />
+                  </div>
+
                   <div className="grid gap-4 md:grid-cols-3">
                     <ReportActionCard
                       title="Planilha Excel"
@@ -2156,16 +2308,22 @@ function App() {
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                       <div>
                         <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-sesi-blue">Detalhamento do inventario</h3>
-                        <p className="mt-1 text-sm text-slate-500">Visualizacao adaptada para consulta em celular e desktop.</p>
+                        <p className="mt-1 text-sm text-slate-500">Itens ordenados por criticidade e atualizacao para priorizar a leitura da diretoria.</p>
                       </div>
                       <p className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
-                        {filteredReportItems.length} itens
+                        {reportPreviewItems.length} de {filteredReportItems.length} itens
                       </p>
                     </div>
 
+                    {!showFullReportDetails && filteredReportItems.length > REPORT_DETAIL_PREVIEW_COUNT ? (
+                      <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
+                        Exibindo primeiro os {REPORT_DETAIL_PREVIEW_COUNT} itens mais sensiveis do recorte. Abra o restante apenas se precisar aprofundar.
+                      </div>
+                    ) : null}
+
                     <div className="mt-4 space-y-4 md:hidden">
-                      {filteredReportItems.length ? (
-                        filteredReportItems.map((item) => <ReportDetailCard key={`report-card-${item.id}`} item={item} />)
+                      {reportPreviewItems.length ? (
+                        reportPreviewItems.map((item) => <ReportDetailCard key={`report-card-${item.id}`} item={item} />)
                       ) : (
                         <div className="rounded-[1.5rem] border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
                           <p className="text-base font-semibold text-sesi-ink">Nenhum item encontrado</p>
@@ -2187,8 +2345,8 @@ function App() {
                           </tr>
                         </thead>
                         <tbody>
-                          {filteredReportItems.length ? (
-                            filteredReportItems.map((item) => (
+                          {reportPreviewItems.length ? (
+                            reportPreviewItems.map((item) => (
                               <tr key={`report-${item.id}`} className="border-t border-slate-100">
                                 <td className="px-4 py-3 font-medium text-sesi-ink">{item.name}</td>
                                 <td className="px-4 py-3 text-slate-600">{item.category}</td>
@@ -2208,6 +2366,16 @@ function App() {
                         </tbody>
                       </table>
                     </div>
+
+                    {filteredReportItems.length > REPORT_DETAIL_PREVIEW_COUNT ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowFullReportDetails((current) => !current)}
+                        className="mt-4 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                      >
+                        {showFullReportDetails ? 'Voltar ao resumo priorizado' : 'Ver todos os itens do relatorio'}
+                      </button>
+                    ) : null}
                   </div>
                 </div>
               </div>

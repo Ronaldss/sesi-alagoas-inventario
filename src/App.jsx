@@ -120,6 +120,43 @@ function SectionToggle({ value, onChange, options }) {
   )
 }
 
+function PaginationControls({ page, totalPages, totalItems, visibleItems, onPageChange }) {
+  if (totalItems <= visibleItems || totalPages <= 1) {
+    return null
+  }
+
+  return (
+    <div className="mt-5 flex flex-col gap-3 rounded-[1.5rem] border border-slate-200 bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-sm text-slate-500">
+        Exibindo <span className="font-semibold text-sesi-ink">{visibleItems}</span> de{' '}
+        <span className="font-semibold text-sesi-ink">{totalItems}</span> itens
+      </p>
+
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onPageChange(page - 1)}
+          disabled={page === 1}
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Anterior
+        </button>
+        <span className="rounded-xl bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-600">
+          Pagina {page} de {totalPages}
+        </span>
+        <button
+          type="button"
+          onClick={() => onPageChange(page + 1)}
+          disabled={page === totalPages}
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Proxima
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function ConditionBadge({ value }) {
   const tones = {
     Excelente: 'bg-emerald-50 text-emerald-700',
@@ -521,6 +558,8 @@ function UnitStatusBadge({ active }) {
   )
 }
 
+const CONSULT_ITEMS_PER_PAGE = 24
+
 function App() {
   const [session, setSession] = useState(null)
   const [items, setItems] = useState([])
@@ -542,6 +581,7 @@ function App() {
   const [showInstallGuide, setShowInstallGuide] = useState(() => shouldShowInstallGuideOnLoad())
   const [isIosDevice] = useState(() => detectIos())
   const [reportFeedback, setReportFeedback] = useState('')
+  const [consultPage, setConsultPage] = useState(1)
   const [authView, setAuthView] = useState(() => (hasSupabaseEnv && isRecoveryContext() ? 'recovery' : 'login'))
   const [recoveryForm, setRecoveryForm] = useState({ password: '', confirmPassword: '' })
   const [recoveryError, setRecoveryError] = useState('')
@@ -755,6 +795,12 @@ function App() {
   const roomOptions = FIXED_ROOM_OPTIONS_BY_CATEGORY[form.category] ?? []
   const shouldShowRoomSelect = roomOptions.length > 0
   const visibleActiveSection = !canCreateItems && activeSection === 'cadastro' ? 'consulta' : activeSection
+  const consultTotalPages = Math.max(1, Math.ceil(filteredItems.length / CONSULT_ITEMS_PER_PAGE))
+  const safeConsultPage = Math.min(consultPage, consultTotalPages)
+  const paginatedItems = filteredItems.slice(
+    (safeConsultPage - 1) * CONSULT_ITEMS_PER_PAGE,
+    safeConsultPage * CONSULT_ITEMS_PER_PAGE,
+  )
   const sectionOptions = [
     ...(canCreateItems ? [{ id: 'cadastro', label: 'Cadastro' }] : []),
     { id: 'consulta', label: 'Consulta' },
@@ -777,6 +823,7 @@ function App() {
       const loadedItems = user.activeUnitId ? await inventoryApi.listItems(user.activeUnitId) : []
       setSession(user)
       setItems(loadedItems)
+      setConsultPage(1)
       setAuthView('app')
 
       if (user.role === 'Administrador') {
@@ -805,6 +852,7 @@ function App() {
       const loadedItems = await inventoryApi.listItems(unitId)
       setSession(nextSession)
       setItems(loadedItems)
+      setConsultPage(1)
       resetFormState()
       setActiveSection('consulta')
     } catch (error) {
@@ -833,6 +881,7 @@ function App() {
     setSession(null)
     setAuthView('login')
     setItems([])
+    setConsultPage(1)
     setAdminUnits([])
     setAdminUsers([])
     resetUnitForm()
@@ -978,6 +1027,7 @@ function App() {
       } else {
         const created = await inventoryApi.createItem(form, selectedFile, session)
         setItems((current) => [created, ...current])
+        setConsultPage(1)
         resetFormState()
         setFeedback(inventoryApi.isRemote ? 'Item salvo no Supabase.' : 'Item cadastrado com sucesso.')
       }
@@ -1103,6 +1153,22 @@ function App() {
   const dismissInstallGuide = () => {
     setShowInstallGuide(false)
     window.localStorage.setItem('sesi-install-guide-dismissed', 'true')
+  }
+
+  const handleConsultFilterChange = (field, value) => {
+    setConsultPage(1)
+    setFilters((current) => ({ ...current, [field]: value }))
+  }
+
+  const handleConsultPageChange = (nextPage) => {
+    if (nextPage < 1 || nextPage > consultTotalPages) {
+      return
+    }
+
+    setConsultPage(nextPage)
+    window.requestAnimationFrame(() => {
+      formCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
   }
 
   const exportReportXlsx = async () => {
@@ -1578,21 +1644,19 @@ function App() {
                   <input
                     type="search"
                     value={filters.search}
-                    onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))}
+                    onChange={(event) => handleConsultFilterChange('search', event.target.value)}
                     className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-sesi-blue focus:bg-white"
                     placeholder="Buscar"
                   />
                   <CategorySelect
                     value={filters.category}
-                    onChange={(category) => setFilters((current) => ({ ...current, category }))}
+                    onChange={(category) => handleConsultFilterChange('category', category)}
                     placeholder="Todas as categorias"
                     allowAll
                   />
                   <select
                     value={filters.condition}
-                    onChange={(event) =>
-                      setFilters((current) => ({ ...current, condition: event.target.value }))
-                    }
+                    onChange={(event) => handleConsultFilterChange('condition', event.target.value)}
                     className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-sesi-blue focus:bg-white"
                   >
                     <option>Todos</option>
@@ -1606,7 +1670,7 @@ function App() {
 
               <div className="mt-5 grid gap-4">
                 {filteredItems.length ? (
-                  filteredItems.map((item) => (
+                  paginatedItems.map((item) => (
                     <article
                       key={item.id}
                       className="grid gap-4 rounded-[1.5rem] border border-slate-200 bg-slate-50/70 p-4 md:grid-cols-[120px_1fr]"
@@ -1680,6 +1744,14 @@ function App() {
                   </div>
                 )}
               </div>
+
+              <PaginationControls
+                page={safeConsultPage}
+                totalPages={consultTotalPages}
+                totalItems={filteredItems.length}
+                visibleItems={paginatedItems.length}
+                onPageChange={handleConsultPageChange}
+              />
               </article>
             </section>
           ) : null}

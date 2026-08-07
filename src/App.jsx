@@ -1,4 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
 import { inventoryApi } from './lib/inventory-api'
 import { hasSupabaseEnv, supabase } from './lib/supabase'
 
@@ -153,6 +165,32 @@ function PaginationControls({ page, totalPages, totalItems, visibleItems, onPage
           Proxima
         </button>
       </div>
+    </div>
+  )
+}
+
+function ReportAccordionSection({ title, description, open, onToggle, badge, children }) {
+  return (
+    <div className="rounded-[1.5rem] border border-slate-200 bg-white shadow-sm">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center justify-between gap-4 px-4 py-4 text-left"
+      >
+        <div>
+          <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-sesi-blue">{title}</h3>
+          <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {badge ? (
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{badge}</span>
+          ) : null}
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+            {open ? 'Ocultar' : 'Abrir'}
+          </span>
+        </div>
+      </button>
+      {open ? <div className="border-t border-slate-200 px-4 py-4">{children}</div> : null}
     </div>
   )
 }
@@ -489,6 +527,204 @@ function ReportPriorityCard({ title, description, rows }) {
   )
 }
 
+function ReportChartCard({ title, description, children }) {
+  return (
+    <div className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm">
+      <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-sesi-blue">{title}</h3>
+      <p className="mt-2 text-sm leading-6 text-slate-500">{description}</p>
+      <div className="mt-4 h-72 w-full">{children}</div>
+    </div>
+  )
+}
+
+function ReportChartsPanel({ categoryRows, conditionRows, locationRows, timelineRows }) {
+  const categoryChartData = categoryRows.slice(0, 6)
+  const locationChartData = locationRows.slice(0, 6)
+  const conditionChartData = conditionRows.filter((row) => row.value > 0)
+  const pieColors = ['#0057b8', '#0b3b75', '#0ea5e9', '#f59e0b']
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-2">
+      <ReportChartCard
+        title="Categorias com maior volume"
+        description="Comparativo rapido das categorias mais representativas do recorte atual."
+      >
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={categoryChartData} layout="vertical" margin={{ top: 8, right: 16, left: 12, bottom: 8 }}>
+            <CartesianGrid strokeDasharray="4 4" stroke="#e2e8f0" />
+            <XAxis type="number" stroke="#64748b" allowDecimals={false} />
+            <YAxis type="category" dataKey="label" stroke="#475569" width={110} tickLine={false} axisLine={false} />
+            <Tooltip formatter={(value) => [`${value} itens`, 'Quantidade']} />
+            <Bar dataKey="value" radius={[0, 12, 12, 0]} fill="#0057b8" />
+          </BarChart>
+        </ResponsiveContainer>
+      </ReportChartCard>
+
+      <ReportChartCard
+        title="Distribuicao por estado"
+        description="Leitura visual do equilibrio entre itens excelentes, bons, regulares e em manutencao."
+      >
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={conditionChartData}
+              dataKey="value"
+              nameKey="label"
+              innerRadius={58}
+              outerRadius={92}
+              paddingAngle={3}
+            >
+              {conditionChartData.map((entry, index) => (
+                <Cell key={`condition-cell-${entry.label}`} fill={pieColors[index % pieColors.length]} />
+              ))}
+            </Pie>
+            <Tooltip formatter={(value) => [`${value} itens`, 'Quantidade']} />
+          </PieChart>
+        </ResponsiveContainer>
+      </ReportChartCard>
+
+      <ReportChartCard
+        title="Concentracao por ambiente"
+        description="Identifica rapidamente os locais com maior acumulacao de itens no inventario."
+      >
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={locationChartData} margin={{ top: 8, right: 16, left: 0, bottom: 32 }}>
+            <CartesianGrid strokeDasharray="4 4" stroke="#e2e8f0" />
+            <XAxis dataKey="label" stroke="#64748b" angle={-18} textAnchor="end" height={56} interval={0} />
+            <YAxis stroke="#64748b" allowDecimals={false} />
+            <Tooltip formatter={(value) => [`${value} itens`, 'Quantidade']} />
+            <Bar dataKey="value" radius={[12, 12, 0, 0]} fill="#0ea5e9" />
+          </BarChart>
+        </ResponsiveContainer>
+      </ReportChartCard>
+
+      <ReportChartCard
+        title="Evolucao por aquisicao"
+        description="Mostra a distribuicao dos registros filtrados ao longo do tempo de aquisicao."
+      >
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={timelineRows} margin={{ top: 8, right: 16, left: 0, bottom: 24 }}>
+            <CartesianGrid strokeDasharray="4 4" stroke="#e2e8f0" />
+            <XAxis dataKey="label" stroke="#64748b" />
+            <YAxis stroke="#64748b" allowDecimals={false} />
+            <Tooltip formatter={(value) => [`${value} itens`, 'Quantidade']} />
+            <Bar dataKey="value" radius={[12, 12, 0, 0]} fill="#0b3b75" />
+          </BarChart>
+        </ResponsiveContainer>
+      </ReportChartCard>
+    </div>
+  )
+}
+
+function ReportExportPanel({ onExportXlsx, onExportCsv, onPrint }) {
+  return (
+    <div className="grid gap-4 md:grid-cols-3">
+      <ReportActionCard
+        title="Planilha institucional"
+        description="Exporta relatorio completo em .xlsx para uso executivo, Excel e LibreOffice."
+        buttonLabel="Exportar planilha completa"
+        onClick={onExportXlsx}
+        primary
+      />
+      <ReportActionCard
+        title="CSV tecnico"
+        description="Gera tabela simples para integracoes, importacao e leitura operacional rapida."
+        buttonLabel="Gerar CSV tecnico"
+        onClick={onExportCsv}
+      />
+      <ReportActionCard
+        title="Versao para impressao"
+        description="Abre uma apresentacao pronta para impressao ou salvamento em PDF institucional."
+        buttonLabel="Abrir versao para impressao"
+        onClick={onPrint}
+      />
+    </div>
+  )
+}
+
+function ReportDetailsPanel({
+  previewItems,
+  totalItems,
+  showFullDetails,
+  onToggleDetails,
+}) {
+  return (
+    <div className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-sesi-blue">Detalhamento do inventario</h3>
+          <p className="mt-1 text-sm text-slate-500">Itens ordenados por criticidade e atualizacao para priorizar a leitura da diretoria.</p>
+        </div>
+        <p className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
+          {previewItems.length} de {totalItems} itens
+        </p>
+      </div>
+
+      {!showFullDetails && totalItems > REPORT_DETAIL_PREVIEW_COUNT ? (
+        <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
+          Exibindo primeiro os {REPORT_DETAIL_PREVIEW_COUNT} itens mais sensiveis do recorte. Abra o restante apenas se precisar aprofundar.
+        </div>
+      ) : null}
+
+      <div className="mt-4 space-y-4 md:hidden">
+        {previewItems.length ? (
+          previewItems.map((item) => <ReportDetailCard key={`report-card-${item.id}`} item={item} />)
+        ) : (
+          <div className="rounded-[1.5rem] border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+            <p className="text-base font-semibold text-sesi-ink">Nenhum item encontrado</p>
+            <p className="mt-2 text-sm text-slate-500">Ajuste os filtros do relatorio para continuar.</p>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-4 hidden overflow-x-auto rounded-2xl border border-slate-200 bg-white md:block">
+        <table className="min-w-full text-left text-sm">
+          <thead className="bg-slate-50 text-slate-600">
+            <tr>
+              <th className="px-4 py-3 font-semibold">Item</th>
+              <th className="px-4 py-3 font-semibold">Categoria</th>
+              <th className="px-4 py-3 font-semibold">Sala</th>
+              <th className="px-4 py-3 font-semibold">Localizacao</th>
+              <th className="px-4 py-3 font-semibold">Estado</th>
+              <th className="px-4 py-3 font-semibold">Aquisicao</th>
+            </tr>
+          </thead>
+          <tbody>
+            {previewItems.length ? (
+              previewItems.map((item) => (
+                <tr key={`report-${item.id}`} className="border-t border-slate-100">
+                  <td className="px-4 py-3 font-medium text-sesi-ink">{item.name}</td>
+                  <td className="px-4 py-3 text-slate-600">{item.category}</td>
+                  <td className="px-4 py-3 text-slate-600">{item.room || '-'}</td>
+                  <td className="px-4 py-3 text-slate-600">{item.location}</td>
+                  <td className="px-4 py-3 text-slate-600">{item.condition}</td>
+                  <td className="px-4 py-3 text-slate-600">{formatDate(item.acquisitionDate)}</td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="6" className="px-4 py-8 text-center text-slate-500">
+                  Nenhum item disponivel para o relatorio com os filtros atuais.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {totalItems > REPORT_DETAIL_PREVIEW_COUNT ? (
+        <button
+          type="button"
+          onClick={onToggleDetails}
+          className="mt-4 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+        >
+          {showFullDetails ? 'Voltar ao resumo priorizado' : 'Ver todos os itens do relatorio'}
+        </button>
+      ) : null}
+    </div>
+  )
+}
+
 function ReportActionCard({ title, description, buttonLabel, onClick, primary = false }) {
   return (
     <div className="rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm">
@@ -636,6 +872,13 @@ function App() {
   const [isIosDevice] = useState(() => detectIos())
   const [reportFeedback, setReportFeedback] = useState('')
   const [showFullReportDetails, setShowFullReportDetails] = useState(false)
+  const [reportSectionsOpen, setReportSectionsOpen] = useState({
+    summary: true,
+    filters: false,
+    charts: true,
+    exports: false,
+    details: false,
+  })
   const [consultPage, setConsultPage] = useState(1)
   const [authView, setAuthView] = useState(() => (hasSupabaseEnv && isRecoveryContext() ? 'recovery' : 'login'))
   const [recoveryForm, setRecoveryForm] = useState({ password: '', confirmPassword: '' })
@@ -879,6 +1122,23 @@ function App() {
     return Object.entries(counts)
       .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0], 'pt-BR'))
       .slice(0, 5)
+      .map(([label, value]) => ({ label, value }))
+  }, [filteredReportItems])
+  const reportTimelineRows = useMemo(() => {
+    const counts = filteredReportItems.reduce((accumulator, item) => {
+      const monthKey = item.acquisitionDate?.slice(0, 7)
+
+      if (!monthKey) {
+        return accumulator
+      }
+
+      accumulator[monthKey] = (accumulator[monthKey] ?? 0) + 1
+      return accumulator
+    }, {})
+
+    return Object.entries(counts)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .slice(-6)
       .map(([label, value]) => ({ label, value }))
   }, [filteredReportItems])
   const reportLeadingLocation = reportLocationRows[0] ?? null
@@ -1298,11 +1558,13 @@ function App() {
 
   const handleReportFilterChange = (field, value) => {
     setShowFullReportDetails(false)
+    setReportSectionsOpen((current) => ({ ...current, details: false }))
     setReportFilters((current) => ({ ...current, [field]: value }))
   }
 
   const resetReportFilters = () => {
     setShowFullReportDetails(false)
+    setReportSectionsOpen((current) => ({ ...current, details: false }))
     setReportFilters({
       search: '',
       category: '',
@@ -1310,6 +1572,10 @@ function App() {
       acquisitionDateFrom: '',
       acquisitionDateTo: '',
     })
+  }
+
+  const toggleReportSection = (sectionId) => {
+    setReportSectionsOpen((current) => ({ ...current, [sectionId]: !current[sectionId] }))
   }
 
   const handleConsultPageChange = (nextPage) => {
@@ -2251,7 +2517,152 @@ function App() {
                 />
               </div>
 
-              <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+              <div className="space-y-4 lg:hidden">
+                <ReportAccordionSection
+                  title="Resumo"
+                  description="Indicadores principais para leitura executiva do inventario."
+                  open={reportSectionsOpen.summary}
+                  onToggle={() => toggleReportSection('summary')}
+                  badge={`${filteredReportItems.length} itens`}
+                >
+                  <div className="grid gap-4">
+                    <ReportPriorityCard
+                      title="Pontos de atencao"
+                      description="Leitura rapida das principais pendencias do recorte exibido."
+                      rows={reportPriorityRows}
+                    />
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      <ReportMetricCard
+                        label="Categoria lider"
+                        value={reportLeadingCategory ? `${reportLeadingCategory.label}` : 'Sem dados'}
+                        help={reportLeadingCategory ? `${reportLeadingCategory.value} itens no recorte atual.` : 'Nenhum item encontrado com os filtros atuais.'}
+                      />
+                      <ReportMetricCard
+                        label="Local com maior volume"
+                        value={reportLeadingLocation ? reportLeadingLocation.label : 'Sem dados'}
+                        help={reportLeadingLocation ? `${reportLeadingLocation.value} itens concentrados neste ambiente.` : 'Nenhum ambiente disponivel no recorte atual.'}
+                      />
+                      <ReportMetricCard
+                        label="Estado predominante"
+                        value={reportTopConditionRow ? reportTopConditionRow.label : 'Sem dados'}
+                        help={reportTopConditionRow ? `${reportTopConditionRow.value} itens neste estado.` : 'Nenhum estado disponivel no recorte atual.'}
+                      />
+                    </div>
+                  </div>
+                </ReportAccordionSection>
+
+                <ReportAccordionSection
+                  title="Filtros"
+                  description="Defina recortes por busca, categoria, estado e periodo."
+                  open={reportSectionsOpen.filters}
+                  onToggle={() => toggleReportSection('filters')}
+                  badge={reportHasActiveFilters ? 'Ativos' : 'Todos'}
+                >
+                  <div className="space-y-3">
+                    <button
+                      type="button"
+                      onClick={resetReportFilters}
+                      disabled={!reportHasActiveFilters}
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Limpar filtros
+                    </button>
+                    <input
+                      type="search"
+                      value={reportFilters.search}
+                      onChange={(event) => handleReportFilterChange('search', event.target.value)}
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-sesi-blue focus:bg-white"
+                      placeholder="Buscar por item ou local"
+                    />
+                    <CategorySelect
+                      value={reportFilters.category}
+                      onChange={(category) => handleReportFilterChange('category', category)}
+                      placeholder="Todas as categorias"
+                      allowAll
+                    />
+                    <select
+                      value={reportFilters.condition}
+                      onChange={(event) => handleReportFilterChange('condition', event.target.value)}
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-sesi-blue focus:bg-white"
+                    >
+                      <option>Todos</option>
+                      <option>Excelente</option>
+                      <option>Bom</option>
+                      <option>Regular</option>
+                      <option>Requer manutencao</option>
+                    </select>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="block space-y-2">
+                        <span className="text-sm font-medium text-slate-700">Aquisicao a partir de</span>
+                        <input
+                          type="date"
+                          value={reportFilters.acquisitionDateFrom}
+                          onChange={(event) => handleReportFilterChange('acquisitionDateFrom', event.target.value)}
+                          className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-sesi-blue focus:bg-white"
+                        />
+                      </label>
+                      <label className="block space-y-2">
+                        <span className="text-sm font-medium text-slate-700">Aquisicao ate</span>
+                        <input
+                          type="date"
+                          value={reportFilters.acquisitionDateTo}
+                          onChange={(event) => handleReportFilterChange('acquisitionDateTo', event.target.value)}
+                          className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-sesi-blue focus:bg-white"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </ReportAccordionSection>
+
+                <ReportAccordionSection
+                  title="Analises"
+                  description="Graficos e comparativos para leitura em estilo BI."
+                  open={reportSectionsOpen.charts}
+                  onToggle={() => toggleReportSection('charts')}
+                >
+                  <div className="space-y-4">
+                    <ReportChartsPanel
+                      categoryRows={reportCategoryRows}
+                      conditionRows={reportConditionRows}
+                      locationRows={reportLocationRows}
+                      timelineRows={reportTimelineRows}
+                    />
+                    <ReportSummaryTable title="Resumo por categoria" rows={reportCategoryRows} />
+                    <ReportSummaryTable title="Resumo por estado" rows={reportConditionRows} />
+                    <ReportSummaryTable title="Top locais por concentracao" rows={reportLocationRows} />
+                  </div>
+                </ReportAccordionSection>
+
+                <ReportAccordionSection
+                  title="Exportacao"
+                  description="Arquivos prontos para diretoria, operacao e impressao."
+                  open={reportSectionsOpen.exports}
+                  onToggle={() => toggleReportSection('exports')}
+                >
+                  <ReportExportPanel
+                    onExportXlsx={exportReportXlsx}
+                    onExportCsv={exportReportCsv}
+                    onPrint={printReport}
+                  />
+                </ReportAccordionSection>
+
+                <ReportAccordionSection
+                  title="Detalhamento"
+                  description="Lista priorizada dos itens mais sensiveis do recorte."
+                  open={reportSectionsOpen.details}
+                  onToggle={() => toggleReportSection('details')}
+                  badge={`${reportPreviewItems.length}/${filteredReportItems.length}`}
+                >
+                  <ReportDetailsPanel
+                    previewItems={reportPreviewItems}
+                    totalItems={filteredReportItems.length}
+                    showFullDetails={showFullReportDetails}
+                    onToggleDetails={() => setShowFullReportDetails((current) => !current)}
+                  />
+                </ReportAccordionSection>
+              </div>
+
+              <div className="hidden gap-4 lg:grid xl:grid-cols-[0.95fr_1.05fr]">
                 <div className="space-y-4">
                   <div className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -2349,101 +2760,25 @@ function App() {
                     />
                   </div>
 
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <ReportActionCard
-                      title="Planilha Excel"
-                      description="Exporta relatorio completo em .xlsx para Excel e LibreOffice."
-                      buttonLabel="Exportar .xlsx"
-                      onClick={exportReportXlsx}
-                      primary
-                    />
-                    <ReportActionCard
-                      title="Arquivo CSV"
-                      description="Gera tabela simples para importacao e abertura rapida."
-                      buttonLabel="Exportar .csv"
-                      onClick={exportReportCsv}
-                    />
-                    <ReportActionCard
-                      title="Impressao"
-                      description="Abre versao pronta para impressao ou salvamento em PDF."
-                      buttonLabel="Abrir impressao"
-                      onClick={printReport}
-                    />
-                  </div>
+                  <ReportChartsPanel
+                    categoryRows={reportCategoryRows}
+                    conditionRows={reportConditionRows}
+                    locationRows={reportLocationRows}
+                    timelineRows={reportTimelineRows}
+                  />
 
-                  <div className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                      <div>
-                        <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-sesi-blue">Detalhamento do inventario</h3>
-                        <p className="mt-1 text-sm text-slate-500">Itens ordenados por criticidade e atualizacao para priorizar a leitura da diretoria.</p>
-                      </div>
-                      <p className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
-                        {reportPreviewItems.length} de {filteredReportItems.length} itens
-                      </p>
-                    </div>
+                  <ReportExportPanel
+                    onExportXlsx={exportReportXlsx}
+                    onExportCsv={exportReportCsv}
+                    onPrint={printReport}
+                  />
 
-                    {!showFullReportDetails && filteredReportItems.length > REPORT_DETAIL_PREVIEW_COUNT ? (
-                      <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
-                        Exibindo primeiro os {REPORT_DETAIL_PREVIEW_COUNT} itens mais sensiveis do recorte. Abra o restante apenas se precisar aprofundar.
-                      </div>
-                    ) : null}
-
-                    <div className="mt-4 space-y-4 md:hidden">
-                      {reportPreviewItems.length ? (
-                        reportPreviewItems.map((item) => <ReportDetailCard key={`report-card-${item.id}`} item={item} />)
-                      ) : (
-                        <div className="rounded-[1.5rem] border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
-                          <p className="text-base font-semibold text-sesi-ink">Nenhum item encontrado</p>
-                          <p className="mt-2 text-sm text-slate-500">Ajuste os filtros do relatorio para continuar.</p>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="mt-4 hidden overflow-x-auto rounded-2xl border border-slate-200 bg-white md:block">
-                      <table className="min-w-full text-left text-sm">
-                        <thead className="bg-slate-50 text-slate-600">
-                          <tr>
-                            <th className="px-4 py-3 font-semibold">Item</th>
-                            <th className="px-4 py-3 font-semibold">Categoria</th>
-                            <th className="px-4 py-3 font-semibold">Sala</th>
-                            <th className="px-4 py-3 font-semibold">Localizacao</th>
-                            <th className="px-4 py-3 font-semibold">Estado</th>
-                            <th className="px-4 py-3 font-semibold">Aquisicao</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {reportPreviewItems.length ? (
-                            reportPreviewItems.map((item) => (
-                              <tr key={`report-${item.id}`} className="border-t border-slate-100">
-                                <td className="px-4 py-3 font-medium text-sesi-ink">{item.name}</td>
-                                <td className="px-4 py-3 text-slate-600">{item.category}</td>
-                                <td className="px-4 py-3 text-slate-600">{item.room || '-'}</td>
-                                <td className="px-4 py-3 text-slate-600">{item.location}</td>
-                                <td className="px-4 py-3 text-slate-600">{item.condition}</td>
-                                <td className="px-4 py-3 text-slate-600">{formatDate(item.acquisitionDate)}</td>
-                              </tr>
-                            ))
-                          ) : (
-                            <tr>
-                              <td colSpan="6" className="px-4 py-8 text-center text-slate-500">
-                                Nenhum item disponivel para o relatorio com os filtros atuais.
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    {filteredReportItems.length > REPORT_DETAIL_PREVIEW_COUNT ? (
-                      <button
-                        type="button"
-                        onClick={() => setShowFullReportDetails((current) => !current)}
-                        className="mt-4 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                      >
-                        {showFullReportDetails ? 'Voltar ao resumo priorizado' : 'Ver todos os itens do relatorio'}
-                      </button>
-                    ) : null}
-                  </div>
+                  <ReportDetailsPanel
+                    previewItems={reportPreviewItems}
+                    totalItems={filteredReportItems.length}
+                    showFullDetails={showFullReportDetails}
+                    onToggleDetails={() => setShowFullReportDetails((current) => !current)}
+                  />
                 </div>
               </div>
               </article>
